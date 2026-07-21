@@ -18,8 +18,12 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            cd /opt/analytics
+            REPO_DIR="/opt/vectornode-analytics"
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone https://github.com/madoper/vectornode-analytics.git "$REPO_DIR"
+            fi
+            cd "$REPO_DIR"
             git pull origin main
-            cp -r airflow/dags/* dags/
+            cp -r airflow/dags/* /opt/analytics/dags/
             systemctl restart airflow-scheduler
             systemctl restart airflow-webserver
