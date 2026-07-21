@@ -414,9 +414,10 @@ def build_group_signals(**context):
 
     df_to_sql_copy(groups, "group_signal", engine, schema="analytics")
 
-    # Create dashboard view
-    view_sql = """
-    CREATE OR REPLACE VIEW analytics.v_company_dashboard AS
+    # Create dashboard table (materialized from joins)
+    table_sql = """
+    DROP TABLE IF EXISTS analytics.v_company_dashboard CASCADE;
+    CREATE TABLE analytics.v_company_dashboard AS
     SELECT
         c.company_id, c.company_name, c.inn, c.ogrn_year, c.region,
         c.okved_code, c.okved_section, c.founder_id, c.address_hash,
@@ -465,7 +466,10 @@ def build_group_signals(**context):
     fairy = engine.raw_connection()
     try:
         cursor = fairy.connection.cursor()
-        cursor.execute(view_sql)
+        cursor.execute(table_sql)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_v_dash_company ON analytics.v_company_dashboard(company_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_v_dash_year ON analytics.v_company_dashboard(year)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_v_dash_criticality ON analytics.v_company_dashboard(criticality)")
         fairy.connection.commit()
         cursor.close()
     finally:
