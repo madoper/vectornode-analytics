@@ -77,9 +77,11 @@ if page == 0:
 
     c1, c2 = st.columns(2)
     with c1:
-        st.plotly_chart(px.bar(hs, x="hypothesis_code", y="findings_count", color="criticality", color_discrete_map=CRIT_COLORS, barmode="stack"), use_container_width=True)
+        st.plotly_chart(px.bar(hs, x="hypothesis_code", y="findings_count", color="criticality", color_discrete_map=CRIT_COLORS, barmode="stack",
+            labels={"hypothesis_code": "Гипотеза", "findings_count": "Находок", "criticality": "Критичность"}), use_container_width=True)
     with c2:
-        st.plotly_chart(px.treemap(hs, path=["hypothesis_code"], values="findings_count", color="criticality", color_discrete_map=CRIT_COLORS), use_container_width=True)
+        st.plotly_chart(px.treemap(hs, path=["hypothesis_code"], values="findings_count", color="criticality", color_discrete_map=CRIT_COLORS,
+            labels={"hypothesis_code": "Гипотеза", "findings_count": "Находок"}), use_container_width=True)
 
     st.markdown("**Рекомендации:** 1) Выездные проверки: C0254, C0069, C0008, C0288. 2) Сверка: C0473, C0385. 3) Пояснения: C0380, C0308. 4) Анализ групп founder_id.")
 
@@ -131,7 +133,7 @@ elif page == 1:
     with c2:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=tl["year"], y=tl["net_margin"] * 100, name="Маржа %", mode="lines+markers", line=dict(color="#4DA6FF", width=3)))
-        fig.add_trace(go.Scatter(x=tl["year"], y=tl["tax_to_profit"], name="tax_to_profit", mode="lines+markers", line=dict(color="#ff9f43", width=2), yaxis="y2"))
+        fig.add_trace(go.Scatter(x=tl["year"], y=tl["tax_to_profit"], name="Налог/прибыль", mode="lines+markers", line=dict(color="#ff9f43", width=2), yaxis="y2"))
         fig.update_layout(title="Маржа и налоги", yaxis2=dict(overlaying="y", side="right"))
         st.plotly_chart(fig, use_container_width=True)
 
@@ -145,7 +147,12 @@ elif page == 1:
 
     if not an.empty:
         st.markdown("#### Аномалии")
-        st.dataframe(an.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality'],'')};color:#FFF" if r['criticality'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
+        an_disp = an.rename(columns={
+            "year": "Год", "hypothesis_code": "Гипотеза", "metric": "Метрика",
+            "value": "Значение", "zscore": "Z-score", "interpretation": "Тип",
+            "interpretation_reason": "Причина", "criticality": "Критичность", "criticality_score": "Балл"
+        })
+        st.dataframe(an_disp.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['Критичность'],'')};color:#FFF" if r['Критичность'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
         export_button(an, f"{cid}_anomalies.csv")
     if not fl.empty:
         st.markdown("#### Флаги H1–H6")
@@ -158,7 +165,11 @@ elif page == 2:
     st.markdown("## <i class='material-icons'>science</i> Анализ гипотез", unsafe_allow_html=True)
     with engine.connect() as conn:
         hs = pd.read_sql(text(Q_HYPOTHESIS_SUMMARY), conn)
-    st.dataframe(hs.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality'],'')}" if r['criticality'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
+    hs_disp = hs.rename(columns={
+        "hypothesis_code": "Гипотеза", "interpretation": "Тип", "criticality": "Критичность",
+        "findings_count": "Находок", "companies_count": "Компаний", "company_year_count": "Компаний×год"
+    })
+    st.dataframe(hs_disp.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['Критичность'],'')}" if r['Критичность'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
     export_button(hs, "hypothesis_summary.csv")
 
     hyps = sorted(hs["hypothesis_code"].unique())
@@ -174,7 +185,8 @@ elif page == 2:
         sc_z["size_val"] = sc_z["net_profit"].fillna(0).abs().clip(upper=sc_z["net_profit"].fillna(0).abs().quantile(0.95))
         fig = px.scatter(sc_z, x="value", y="zscore", color="criticality", size="size_val",
                          hover_data=["company_name", "year", "interpretation"],
-                         color_discrete_map=CRIT_COLORS)
+                         color_discrete_map=CRIT_COLORS,
+                         labels={"value": "Значение", "zscore": "Z‑score", "criticality": "Критичность"})
         fig.add_hline(y=2, line_dash="dash", line_color="#feca57")
         fig.add_hline(y=-2, line_dash="dash", line_color="#feca57")
         fig.add_hline(y=3, line_dash="dash", line_color="#ff4b4b")
@@ -186,7 +198,12 @@ elif page == 2:
         disp = sc.dropna(subset=["zscore"])
         if not disp.empty:
             disp = disp.sort_values("zscore", key=lambda x: x.abs(), ascending=False)
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            disp_disp = disp.rename(columns={
+                "company_id": "ID", "company_name": "Компания", "year": "Год",
+                "value": "Значение", "zscore": "Z‑score", "criticality": "Критичность",
+                "interpretation": "Тип", "net_profit": "Прибыль", "headcount": "Штат"
+            })
+            st.dataframe(disp_disp, use_container_width=True, hide_index=True)
             if st.button("Перейти к компании"):
                 st.session_state["selected_company"] = disp.iloc[0]["company_id"]
                 st.rerun()
@@ -199,7 +216,14 @@ elif page == 3:
         grp = pd.read_sql(text(Q_GROUPS), conn, params={"gtype": gtype})
     if grp.empty:
         st.info("Нет данных"); st.stop()
-    st.dataframe(grp.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality_final'],'')};color:#FFF" if r['criticality_final'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
+    grp_disp = grp.rename(columns={
+        "group_key": "Группа", "companies_count": "Компаний",
+        "risk_anomaly_count": "Риск. аномалии", "signal_anomaly_count": "Сигн. аномалии",
+        "anomaly_count": "Аномалий", "avg_criticality_score": "Ср. балл",
+        "max_criticality_score": "Макс. балл", "criticality_final": "Критичность",
+        "interpretation_final": "Тип"
+    })
+    st.dataframe(grp_disp.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['Критичность'],'')};color:#FFF" if r['Критичность'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
     export_button(grp, f"groups_{gtype}.csv")
     top = grp.nlargest(20, "anomaly_count")
     fig = px.bar(top, x="anomaly_count", y="group_key", orientation="h", color="max_criticality_score", color_continuous_scale="Reds")
