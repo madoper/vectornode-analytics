@@ -237,4 +237,11 @@ elif page == 3:
     sel = st.selectbox("Детализация", grp["group_key"])
     det = grp[grp["group_key"] == sel]
     if not det.empty:
-        st.dataframe(det, use_container_width=True, hide_index=True)
+        det_disp = det.rename(columns={
+            "group_key": "Группа", "companies_count": "Компаний",
+            "risk_anomaly_count": "Риск. аномалии", "signal_anomaly_count": "Сигн. аномалии",
+            "anomaly_count": "Аномалий", "avg_criticality_score": "Ср. балл",
+            "max_criticality_score": "Макс. балл", "criticality_final": "Критичность",
+            "interpretation_final": "Тип"
+        })
+        st.dataframe(det_disp, use_container_width=True, hide_index=True)
