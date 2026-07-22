@@ -78,7 +78,7 @@ if page == 0:
     card(c5, "Добросовестные", "#2ed573", good, ["top_hypothesis_code", "top_reason"])
 
     with engine.connect() as conn:
-        hs = pd.read_sql(Q_HYPOTHESIS_SUMMARY), conn.connection)
+        hs = pd.read_sql(Q_HYPOTHESIS_SUMMARY, conn.connection)
 
     c1, c2 = st.columns(2)
     with c1:
@@ -106,9 +106,9 @@ elif page == 1:
     cid = opts[sel]
 
     with engine.connect() as conn:
-        tl = pd.read_sql(Q_COMPANY_TIMELINE), conn.connection, params={"cid": cid})
-        an = pd.read_sql(Q_COMPANY_ANOMALIES), conn.connection, params={"cid": cid})
-        fl = pd.read_sql(Q_COMPANY_FLAGS), conn.connection, params={"cid": cid})
+        tl = pd.read_sql(Q_COMPANY_TIMELINE, conn.connection, params={"cid": cid})
+        an = pd.read_sql(Q_COMPANY_ANOMALIES, conn.connection, params={"cid": cid})
+        fl = pd.read_sql(Q_COMPANY_FLAGS, conn.connection, params={"cid": cid})
     if tl.empty:
         st.warning("Нет данных"); st.stop()
     last = tl.iloc[-1]
@@ -169,7 +169,7 @@ elif page == 1:
 elif page == 2:
     st.markdown("## <i class='material-icons'>science</i> Анализ гипотез", unsafe_allow_html=True)
     with engine.connect() as conn:
-        hs = pd.read_sql(Q_HYPOTHESIS_SUMMARY), conn.connection)
+        hs = pd.read_sql(Q_HYPOTHESIS_SUMMARY, conn.connection)
     hs_disp = hs.rename(columns={
         "hypothesis_code": "Гипотеза", "interpretation": "Тип", "criticality": "Критичность",
         "findings_count": "Находок", "companies_count": "Компаний", "company_year_count": "Компаний×год"
@@ -184,7 +184,7 @@ elif page == 2:
     y = st.selectbox("Год", ["Все"] + [str(y) for y in yrs])
 
     with engine.connect() as conn:
-        sc = pd.read_sql(Q_ANOMALY_SCATTER), conn.connection, params={"h": h, "y": None if y == "Все" else int(y)})
+        sc = pd.read_sql(Q_ANOMALY_SCATTER, conn.connection, params={"h": h, "y": None if y == "Все" else int(y)})
     sc_z = sc.dropna(subset=["zscore"]).copy()
     if not sc_z.empty:
         sc_z["size_val"] = sc_z["net_profit"].fillna(0).abs().clip(upper=sc_z["net_profit"].fillna(0).abs().quantile(0.95))
@@ -218,7 +218,7 @@ elif page == 3:
     st.markdown("## <i class='material-icons'>groups</i> Групповой анализ", unsafe_allow_html=True)
     gtype = st.radio("Тип группы", ["founder", "address"], horizontal=True)
     with engine.connect() as conn:
-        grp = pd.read_sql(Q_GROUPS), conn.connection, params={"gtype": gtype})
+        grp = pd.read_sql(Q_GROUPS, conn.connection, params={"gtype": gtype})
     if grp.empty:
         st.info("Нет данных"); st.stop()
     multi_only = st.checkbox("Только группы ≥ 2 компаний", value=True)
@@ -256,8 +256,8 @@ elif page == 4:
     st.markdown("## <i class='material-icons'>business</i> Отраслевой анализ", unsafe_allow_html=True)
 
     with engine.connect() as conn:
-        ind_margin = pd.read_sql(Q_INDUSTRY_MARGIN), conn.connection)
-        ind_tax = pd.read_sql(Q_INDUSTRY_TAX), conn.connection)
+        ind_margin = pd.read_sql(Q_INDUSTRY_MARGIN, conn.connection)
+        ind_tax = pd.read_sql(Q_INDUSTRY_TAX, conn.connection)
 
     c1, c2 = st.columns(2)
     with c1:
