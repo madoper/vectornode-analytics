@@ -10,16 +10,14 @@ df_hf = data["hypothesis_flags"]
 df_gs = data["group_signal"]
 df_hs = data["hypothesis_summary"]
 
+# ── Sidebar: manual data test ──
 st.sidebar.header("Фильтры")
 
-years = sorted(int(x) for x in df_cy["year"].unique())
-sel_year = st.sidebar.selectbox("Год", years, index=len(years) - 1, key="g_year")
+sel_year = st.sidebar.selectbox("Год", [2023, 2024, 2025], index=2, key="g_year")
 
-regions = sorted(df_cy["region"].dropna().unique().tolist())
-sel_region = st.sidebar.selectbox("Регион", ["Все"] + regions, index=0, key="g_region")
+sel_region = st.sidebar.selectbox("Регион", ["Все", "Москва", "СПб"], index=0, key="g_region")
 
-sectors = sorted(df_cy["okved_section"].dropna().unique().tolist())
-sel_sector = st.sidebar.selectbox("Отрасль", ["Все"] + sectors, index=0, key="g_sector")
+sel_sector = st.sidebar.selectbox("Отрасль", ["Все", "IT", "Пром"], index=0, key="g_sector")
 
 hyps_all = sorted(df_an["hypothesis_code"].unique().tolist())
 sel_hyps = st.sidebar.multiselect("Гипотеза", hyps_all, default=hyps_all, key="g_hyps")
@@ -37,6 +35,7 @@ st.sidebar.markdown("🔴 Risk — риск-аномалия")
 st.sidebar.markdown("🔵 Economic Signal — экон. сигнал")
 st.sidebar.caption("none / low / medium / high / critical")
 
+# ── Apply filters ──
 mask_cy = (df_cy["year"] == sel_year)
 if sel_region != "Все":
     mask_cy &= df_cy["region"] == sel_region
