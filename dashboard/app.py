@@ -262,9 +262,25 @@ elif page == 4:
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("#### Boxplot: маржа по отраслям")
-        fig1 = px.box(ind_margin, x="okved_section", y="net_margin",
-                       labels={"okved_section": "Отрасль", "net_margin": "Чистая маржа"})
-        fig1.update_xaxes(tickangle=45)
+        fig1 = go.Figure()
+        outlier_x = []; outlier_y = []; outlier_text = []
+        for sector in sorted(ind_margin["okved_section"].dropna().unique()):
+            vals = ind_margin[ind_margin["okved_section"] == sector]["net_margin"].dropna()
+            q1, q3 = vals.quantile(0.25), vals.quantile(0.75)
+            iqr = q3 - q1
+            lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+            out = ind_margin[(ind_margin["okved_section"] == sector) & ((ind_margin["net_margin"] < lo) | (ind_margin["net_margin"] > hi))]
+            for _, r in out.iterrows():
+                outlier_x.append(sector)
+                outlier_y.append(r["net_margin"])
+                outlier_text.append(f"{r['company_name']}<br>Маржа: {r['net_margin']:.1%}")
+            fig1.add_trace(go.Box(y=vals, name=sector, showlegend=False, marker_color="#4DA6FF"))
+        fig1.add_trace(go.Scatter(x=outlier_x, y=outlier_y, mode="markers",
+                                   marker=dict(color="#ff4b4b", size=8, symbol="x"),
+                                   text=outlier_text, hovertemplate="%{text}<extra></extra>",
+                                   name="Выбросы"))
+        fig1.update_xaxes(tickangle=45, title="Отрасль")
+        fig1.update_yaxes(title="Чистая маржа")
         st.plotly_chart(fig1, use_container_width=True)
 
     with c2:

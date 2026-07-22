@@ -107,7 +107,7 @@ SELECT DISTINCT year FROM reporting.rpt_anomaly ORDER BY year;
 """
 
 Q_INDUSTRY_MARGIN = """
-SELECT okved_section, net_margin
+SELECT okved_section, net_margin, company_name, company_id
 FROM reporting.rpt_company_year
 WHERE year = (SELECT MAX(year) FROM reporting.rpt_company_year)
   AND net_margin IS NOT NULL
