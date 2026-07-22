@@ -3,6 +3,10 @@ from utils.data_loader import load_all
 
 st.set_page_config(page_title="АНАЛИЗ РИСКОВ", layout="wide", initial_sidebar_state="expanded")
 
+# RADICAL TEST: sidebar content BEFORE data loading
+st.sidebar.markdown("## SIDEBAR TEST")
+st.sidebar.write("Это работает?")
+
 data = load_all()
 df_cy = data["company_year"]
 df_an = data["anomaly"]
