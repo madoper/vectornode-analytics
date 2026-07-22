@@ -33,19 +33,23 @@ df_hs = data["hypothesis_summary"]
 with st.sidebar:
     st.header("Фильтры")
 
-    sel_regions = st.multiselect("Регион", sorted(df_cy["region"].dropna().unique()), key="g_regions")
-    sel_sectors = st.multiselect("Отрасль", sorted(df_cy["okved_section"].dropna().unique()), key="g_sectors")
+    # Convert all data to Python lists explicitly
+    regions = sorted(df_cy["region"].dropna().unique().tolist())
+    sel_regions = st.multiselect("Регион", regions, key="g_regions")
 
-    years = sorted(df_cy["year"].unique())
+    sectors = sorted(df_cy["okved_section"].dropna().unique().tolist())
+    sel_sectors = st.multiselect("Отрасль", sectors, key="g_sectors")
+
+    years = sorted(int(x) for x in df_cy["year"].unique())
     sel_year = st.selectbox("Год", years, index=len(years) - 1, key="g_year")
 
-    hyps_all = sorted(df_an["hypothesis_code"].unique())
+    hyps_all = sorted(df_an["hypothesis_code"].unique().tolist())
     sel_hyps = st.multiselect("Гипотеза", hyps_all, default=hyps_all, key="g_hyps")
 
-    interps_all = sorted(df_an["interpretation"].unique())
+    interps_all = sorted(df_an["interpretation"].unique().tolist())
     sel_interps = st.multiselect("Интерпретация", interps_all, default=interps_all, key="g_interps")
 
-    crits_all = sorted(df_an["criticality"].unique())
+    crits_all = sorted(df_an["criticality"].unique().tolist())
     sel_crits = st.multiselect("Критичность", crits_all, default=crits_all, key="g_crits")
 
     st.markdown(f"Компаний: **{len(df_cy)}**")
