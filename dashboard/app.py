@@ -24,28 +24,30 @@ from utils.charts import (
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; }
-    .main h1, .main h2, .main h3 { color: #FFFFFF; }
     div[data-testid="stMetricValue"] { color: #FFFFFF !important; }
 
-    header[data-testid="stHeader"] { visibility: hidden; height: 0; }
-
-    footer { visibility: hidden; }
-
-    section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p:last-child {
-        display: none;
+    /* Keep Streamlit header functional but transparent */
+    header[data-testid="stHeader"] {
+        background-color: transparent !important;
+        height: 56px !important;
+        z-index: 10000 !important;
+    }
+    /* Hide only the deploy/menu buttons, keep sidebar toggle visible */
+    header[data-testid="stHeader"] [data-testid="stToolbar"] {
+        display: none !important;
     }
 
+    footer { visibility: hidden !important; }
+
+    /* Sidebar: always expanded */
     section[data-testid="stSidebar"] {
         min-width: 280px !important;
     }
-    [data-testid="stSidebarCollapseButton"] button,
-    [data-testid="stSidebarCollapseButton"] {
-        display: none !important;
-    }
-    section[data-testid="stSidebar"] .st-emotion-cache-1gwvycy {
-        display: none !important;
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p:last-child {
+        display: none;
     }
 
+    /* Custom header overlay */
     #custom-header {
         position: fixed;
         top: 0;
@@ -58,6 +60,7 @@ st.markdown("""
         padding: 0 16px;
         z-index: 9999;
         border-bottom: 1px solid #333;
+        pointer-events: none;
     }
     #custom-header img {
         height: 40px;
@@ -74,16 +77,20 @@ st.markdown("""
         white-space: nowrap;
     }
 
-    .stMainBlockContainer {
+    /* Main content: push below header */
+    section[data-testid="stMain"] > div {
         padding-top: 60px !important;
+    }
+    section[data-testid="stMain"] {
         overflow: visible !important;
     }
 
+    /* Sticky tabs */
     div[data-testid="stTabs"] {
-        position: sticky;
-        top: 56px;
-        z-index: 998;
-        background-color: #0E1117;
+        position: sticky !important;
+        top: 56px !important;
+        z-index: 998 !important;
+        background-color: #0E1117 !important;
         padding-top: 4px;
         padding-bottom: 4px;
         border-bottom: 1px solid #333;
