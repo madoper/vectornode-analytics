@@ -63,7 +63,7 @@ SELECT year, revenue, net_profit, dividends_paid, headcount,
        rev_growth, emp_growth, anomaly_count, max_criticality_score,
        criticality_final, risk_flag, signal_only_flag
 FROM reporting.rpt_company_year
-WHERE company_id = :cid
+WHERE company_id = %(cid)s
 ORDER BY year;
 """
 
@@ -71,7 +71,7 @@ Q_COMPANY_ANOMALIES = """
 SELECT year, hypothesis_code, metric, value, zscore,
        interpretation, interpretation_reason, criticality, criticality_score
 FROM reporting.rpt_anomaly
-WHERE company_id = :cid
+WHERE company_id = %(cid)s
 ORDER BY year, hypothesis_code;
 """
 
@@ -80,7 +80,7 @@ SELECT year, h1_flag, h2_flag, h3_flag, h4_flag, h5_flag, h6_flag,
        h1_criticality, h2_criticality, h3_criticality,
        h4_criticality, h5_criticality, h6_criticality
 FROM reporting.rpt_company_hypothesis_flags
-WHERE company_id = :cid
+WHERE company_id = %(cid)s
 ORDER BY year;
 """
 
@@ -88,7 +88,7 @@ Q_ANOMALY_SCATTER = """
 SELECT company_id, company_name, year, value, zscore,
        criticality, interpretation, net_profit, headcount
 FROM reporting.rpt_anomaly
-WHERE hypothesis_code = :h AND (:y IS NULL OR year = :y)
+WHERE hypothesis_code = %(h)s AND (%(y)s IS NULL OR year = %(y)s)
 ORDER BY ABS(zscore) DESC;
 """
 
@@ -98,7 +98,7 @@ SELECT group_key, companies_count, risk_companies_count AS risk_anomaly_count,
        ROUND(avg_criticality_score::numeric, 2) AS avg_criticality_score,
        max_criticality_score, interpretation_final, criticality_final
 FROM reporting.rpt_group_signal
-WHERE group_type = :gtype
+WHERE group_type = %(gtype)s
 ORDER BY max_criticality_score DESC, anomaly_count DESC;
 """
 
