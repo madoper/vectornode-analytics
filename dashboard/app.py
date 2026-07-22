@@ -27,6 +27,7 @@ df_hs = data["hypothesis_summary"]
 
 # ── Sidebar filters (direct st.sidebar calls) ──
 st.sidebar.header("Фильтры")
+st.sidebar.write("▶ Тест — эта строка видна?")
 
 years = sorted(int(x) for x in df_cy["year"].unique())
 sel_year = st.sidebar.selectbox("Год", years, index=len(years) - 1, key="g_year")
