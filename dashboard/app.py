@@ -216,6 +216,11 @@ elif page == 3:
         grp = pd.read_sql(text(Q_GROUPS), conn, params={"gtype": gtype})
     if grp.empty:
         st.info("Нет данных"); st.stop()
+    multi_only = st.checkbox("Только группы ≥ 2 компаний", value=True)
+    if multi_only:
+        grp = grp[grp["companies_count"] >= 2]
+    if grp.empty:
+        st.info("Нет групп с ≥ 2 компаниями"); st.stop()
     grp_disp = grp.rename(columns={
         "group_key": "Группа", "companies_count": "Компаний",
         "risk_anomaly_count": "Риск. аномалии", "signal_anomaly_count": "Сигн. аномалии",
