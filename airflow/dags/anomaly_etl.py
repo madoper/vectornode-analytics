@@ -754,52 +754,82 @@ def build_rpt_group_signal(**context):
     engine = get_engine()
 
     query = """
-        SELECT c.founder_id, c.address_hash,
-               STRING_AGG(DISTINCT c.company_id, ', ') AS company_ids,
-               a.company_id, a.year,
+        SELECT c.founder_id, c.address_hash, a.company_id,
                a.criticality_score, a.interpretation
         FROM analytics.anomaly a
         JOIN analytics.company c ON c.company_id = a.company_id
-        GROUP BY c.founder_id, c.address_hash, a.company_id, a.year, a.criticality_score, a.interpretation
     """
     df = read_sql_df(query, engine)
 
     if df.empty:
         return {"group_signal_rows": 0}
 
-    founder = df.dropna(subset=["founder_id"]).groupby("founder_id").agg(
-        companies_count=("company_id", "nunique"),
-        risk_companies_count=("interpretation", lambda x: (x == "risk").sum()),
-        signal_companies_count=("interpretation", lambda x: (x == "economic_signal").sum()),
-        anomaly_count=("company_id", "count"),
-        avg_criticality_score=("criticality_score", "mean"),
-        max_criticality_score=("criticality_score", "max"),
-    ).reset_index()
-    founder["group_type"] = "founder"
-    founder = founder.rename(columns={"founder_id": "group_key"})
+    def aggregate_group(df_sub, group_col):
+        # Step 1: per-company metrics within the group
+        per_company = df_sub.groupby([group_col, "company_id"]).agg(
+            has_risk=("interpretation", lambda x: int((x == "risk").any())),
+            has_signal=("interpretation", lambda x: int((x == "economic_signal").any() and not (x == "risk").any())),
+            company_anomaly_count=("company_id", "count"),
+            company_max_score=("criticality_score", "max"),
+            company_avg_score=("criticality_score", "mean"),
+        ).reset_index()
 
-    address = df.dropna(subset=["address_hash"]).groupby("address_hash").agg(
-        companies_count=("company_id", "nunique"),
-        risk_companies_count=("interpretation", lambda x: (x == "risk").sum()),
-        signal_companies_count=("interpretation", lambda x: (x == "economic_signal").sum()),
-        anomaly_count=("company_id", "count"),
-        avg_criticality_score=("criticality_score", "mean"),
-        max_criticality_score=("criticality_score", "max"),
-    ).reset_index()
-    address["group_type"] = "address"
-    address = address.rename(columns={"address_hash": "group_key"})
+        # Step 2: aggregate to group level
+        result = per_company.groupby(group_col).agg(
+            companies_count=("company_id", "nunique"),
+            risk_companies_count=("has_risk", "sum"),
+            signal_companies_count=("has_signal", "sum"),
+            anomaly_count=("company_anomaly_count", "sum"),
+            avg_criticality_score=("company_avg_score", "mean"),
+            max_criticality_score=("company_max_score", "max"),
+        ).reset_index()
+        result["group_type"] = "founder" if group_col == "founder_id" else "address"
+        result = result.rename(columns={group_col: "group_key"})
+        return result
+
+    founder = aggregate_group(df.dropna(subset=["founder_id"]), "founder_id")
+    address = aggregate_group(df.dropna(subset=["address_hash"]), "address_hash")
 
     groups = pd.concat([founder, address], ignore_index=True)
 
-    groups["interpretation_final"] = np.where(
-        (groups["companies_count"] >= 3) & (groups["risk_companies_count"] >= 2),
-        "risk", "neutral",
-    )
-    groups["interpretation_reason_final"] = np.where(
-        groups["interpretation_final"] == "risk",
-        "Связанная группа содержит несколько компаний с рисковыми сигналами.",
-        "Группа не демонстрирует устойчивого рискового паттерна.",
-    )
+    # Interpretation matrix (fixed logic)
+    groups["interpretation_final"] = "neutral"
+    groups["interpretation_reason_final"] = ""
+
+    # Critical: single company with critical signals
+    mask_crit_single = (groups["max_criticality_score"] >= 4) & (groups["companies_count"] == 1)
+    groups.loc[mask_crit_single, "interpretation_final"] = "risk"
+    groups.loc[mask_crit_single, "interpretation_reason_final"] = \
+        "Критический риск в рамках одной компании. Кросс-компанийный паттерн не выявлен."
+
+    # Critical: multiple companies with critical signals
+    mask_crit_multi = (groups["max_criticality_score"] >= 4) & (groups["companies_count"] > 1)
+    groups.loc[mask_crit_multi, "interpretation_final"] = "risk"
+    groups.loc[mask_crit_multi, "interpretation_reason_final"] = \
+        "Связанная группа содержит компании с критическими сигналами."
+
+    # High: multiple companies with elevated risk
+    mask_high = (groups["max_criticality_score"] >= 3) & (groups["risk_companies_count"] >= 2) \
+                & (groups["interpretation_final"] == "neutral")
+    groups.loc[mask_high, "interpretation_final"] = "risk"
+    groups.loc[mask_high, "interpretation_reason_final"] = \
+        "Несколько компаний в группе имеют рисковые сигналы."
+
+    # Economic signal: companies with economic signals, no critical risk
+    mask_signal = (groups["max_criticality_score"] >= 2) & (groups["signal_companies_count"] > 0) \
+                  & (groups["interpretation_final"] == "neutral")
+    groups.loc[mask_signal, "interpretation_final"] = "economic_signal"
+    groups.loc[mask_signal, "interpretation_reason_final"] = \
+        "Группа демонстрирует экономические сигналы без критических рисков."
+
+    # Default neutral
+    mask_neutral = groups["interpretation_final"] == "neutral"
+    groups.loc[mask_neutral & (groups["companies_count"] == 1), "interpretation_reason_final"] = \
+        "Кросс-компанийный паттерн не выявлен (1 компания в группе)."
+    groups.loc[mask_neutral & (groups["companies_count"] > 1), "interpretation_reason_final"] = \
+        "Группа не демонстрирует устойчивого рискового паттерна."
+
+    # Criticality scoring
     groups["criticality_final"] = np.where(
         groups["max_criticality_score"] >= 4, "critical",
         np.where(groups["max_criticality_score"] >= 3, "high",
@@ -816,10 +846,11 @@ def build_rpt_group_signal(**context):
     finally:
         fairy.close()
 
-    groups = groups.rename(columns={
-        "avg_criticality_score": "avg_criticality_score",
-        "max_criticality_score": "max_criticality_score",
-    })
+    cols = ["group_type", "group_key", "companies_count", "risk_companies_count",
+            "signal_companies_count", "anomaly_count", "avg_criticality_score",
+            "max_criticality_score", "interpretation_final", "interpretation_reason_final",
+            "criticality_final"]
+    groups = groups[cols]
 
     df_to_sql_copy(groups, "rpt_group_signal", engine, schema=schema)
 
