@@ -4,25 +4,36 @@ import streamlit as st
 
 DB_URL = "postgresql+psycopg2://podft:podft-secret@localhost:5432/analytics"
 
+
 @st.cache_data(ttl=300)
 def load_company_year():
     return pd.read_sql("SELECT * FROM reporting.rpt_company_year", DB_URL)
+
 
 @st.cache_data(ttl=300)
 def load_anomaly():
     return pd.read_sql("SELECT * FROM reporting.rpt_anomaly", DB_URL)
 
+
 @st.cache_data(ttl=300)
 def load_hypothesis_flags():
     return pd.read_sql("SELECT * FROM reporting.rpt_company_hypothesis_flags", DB_URL)
 
+
 @st.cache_data(ttl=300)
 def load_group_signal():
-    return pd.read_sql("SELECT * FROM reporting.rpt_group_signal", DB_URL)
+    df = pd.read_sql("SELECT * FROM reporting.rpt_group_signal", DB_URL)
+    df = df.rename(columns={
+        "risk_companies_count": "risk_anomaly_count",
+        "signal_companies_count": "signal_anomaly_count",
+    })
+    return df
+
 
 @st.cache_data(ttl=300)
 def load_hypothesis_summary():
     return pd.read_sql("SELECT * FROM reporting.rpt_hypothesis_summary", DB_URL)
+
 
 def load_all():
     return {

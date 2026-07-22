@@ -8,6 +8,8 @@ CRITICALITY_COLORS = {
 
 CRITICALITY_ORDER = ["none", "low", "medium", "high", "critical"]
 
+CRITICALITY_SCORE_MAP = {"none": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+
 INTERPRETATION_COLORS = {
     "risk": "#FF4B4B",
     "economic_signal": "#4DA6FF",

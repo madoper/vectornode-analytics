@@ -1,8 +1,6 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
+from utils.data_loader import load_all
+from utils.constants import CRITICALITY_COLORS, CRITICALITY_ORDER, INTERPRETATION_COLORS, HYPOTHESIS_LABELS
 
 st.set_page_config(
     page_title="АНАЛИЗ РИСКОВ",
@@ -11,38 +9,24 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from utils.data_loader import load_all
-from utils.constants import (
-    CRITICALITY_COLORS, CRITICALITY_ORDER, INTERPRETATION_COLORS,
-    HYPOTHESIS_LABELS, HYPOTHESIS_METRICS,
-)
-from utils.charts import (
-    format_rub, kpi_card, criticality_bar, hypothesis_bar,
-    hypothesis_heatmap, scatter_zscore, line_chart, radar_zscores,
-)
-
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; }
     div[data-testid="stMetricValue"] { color: #FFFFFF !important; }
 
-    /* Keep Streamlit header functional but transparent */
+    /* Keep header functional but transparent */
     header[data-testid="stHeader"] {
         background-color: transparent !important;
         height: 56px !important;
         z-index: 10000 !important;
     }
-    /* Hide only the deploy/menu buttons, keep sidebar toggle visible */
     header[data-testid="stHeader"] [data-testid="stToolbar"] {
         display: none !important;
     }
 
     footer { visibility: hidden !important; }
 
-    /* Sidebar: always expanded */
-    section[data-testid="stSidebar"] {
-        min-width: 280px !important;
-    }
+    section[data-testid="stSidebar"] { min-width: 260px !important; }
     section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p:last-child {
         display: none;
     }
@@ -50,9 +34,7 @@ st.markdown("""
     /* Custom header overlay */
     #custom-header {
         position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
+        top: 0; left: 0; right: 0;
         height: 56px;
         background-color: #0E1117;
         display: flex;
@@ -62,28 +44,15 @@ st.markdown("""
         border-bottom: 1px solid #333;
         pointer-events: none;
     }
-    #custom-header img {
-        height: 40px;
-        width: 40px;
-    }
+    #custom-header img { height: 40px; width: 40px; }
     #custom-header .title {
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 20px;
-        font-weight: 700;
-        letter-spacing: 3px;
-        color: #FFFFFF;
-        white-space: nowrap;
+        position: absolute; left: 50%; transform: translateX(-50%);
+        font-size: 20px; font-weight: 700; letter-spacing: 3px;
+        color: #FFFFFF; white-space: nowrap;
     }
 
-    /* Main content: push below header */
-    section[data-testid="stMain"] > div {
-        padding-top: 60px !important;
-    }
-    section[data-testid="stMain"] {
-        overflow: visible !important;
-    }
+    /* Main content offset */
+    section[data-testid="stMain"] > div { padding-top: 60px !important; }
 
     /* Sticky tabs */
     div[data-testid="stTabs"] {
@@ -91,14 +60,11 @@ st.markdown("""
         top: 56px !important;
         z-index: 998 !important;
         background-color: #0E1117 !important;
-        padding-top: 4px;
-        padding-bottom: 4px;
+        padding-top: 4px; padding-bottom: 4px;
         border-bottom: 1px solid #333;
         margin-bottom: 12px;
     }
-    div[data-testid="stTabs"] button {
-        font-size: 14px;
-    }
+    div[data-testid="stTabs"] button { font-size: 14px; }
 </style>
 <div id="custom-header">
     <img src="/app/static/logo.svg" alt="Logo">
@@ -106,70 +72,50 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-@st.cache_resource
-def get_data():
-    return load_all()
+# JS diagnostics — dump key selectors at startup
+st.markdown("""
+<script>
+(function() {
+    const els = [];
+    const selectors = [
+        "header[data-testid='stHeader']",
+        "section[data-testid='stSidebar']",
+        "div[data-testid='stTabs']",
+        "section[data-testid='stMain']",
+        "section[data-testid='stMain'] > div",
+        "button[kind='header']",
+        "[data-testid='stSidebarCollapseButton']",
+        ".st-emotion-cache-1gwvycy",
+        "footer",
+    ];
+    for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        els.push(sel + " => " + (el ? el.tagName + (el.id ? "#" + el.id : "") : "NOT FOUND"));
+    }
+    const dump = document.createElement("details");
+    dump.style.cssText = "font-size:11px;color:#888;margin:4px;";
+    dump.innerHTML = "<summary>DOM diagnostics</summary><pre>" + els.join("\\n") + "</pre>";
+    document.body.appendChild(dump);
+})();
+</script>
+""", unsafe_allow_html=True)
 
-data = get_data()
+data = load_all()
 df_cy = data["company_year"]
 df_an = data["anomaly"]
 df_hf = data["hypothesis_flags"]
 df_gs = data["group_signal"]
 df_hs = data["hypothesis_summary"]
 
-# === SIDEBAR: Global Filters ===
-with st.sidebar:
-    st.header("Фильтры")
-
-    years = sorted(df_cy["year"].unique())
-    sel_year = st.selectbox("Год", years, index=len(years)-1, key="global_year")
-
-    regions = sorted(df_cy["region"].dropna().unique())
-    sel_regions = st.multiselect("Регион", regions, key="global_regions")
-
-    sectors = sorted(df_cy["okved_section"].dropna().unique())
-    sel_sectors = st.multiselect("Отрасль", sectors, key="global_sectors")
-
-    st.divider()
-
-    st.caption("Легенда")
-    st.markdown('<span style="color:#FF4B4B">●</span> **Risk** — риск-аномалия', unsafe_allow_html=True)
-    st.markdown('<span style="color:#4DA6FF">●</span> **Economic Signal** — экон. сигнал', unsafe_allow_html=True)
-    st.markdown("Критичность:")
-    for lbl, clr in [("critical", "#FF4B4B"), ("high", "#FF8C00"), ("medium", "#FFD700"), ("low", "#32CD32")]:
-        st.markdown(f'<span style="color:{clr}; margin-left:12px">●</span> {lbl}', unsafe_allow_html=True)
-
-    st.divider()
-
-# Apply global filters
-df_cy_filt = df_cy[df_cy["year"] == sel_year]
-if sel_regions:
-    df_cy_filt = df_cy_filt[df_cy_filt["region"].isin(sel_regions)]
-if sel_sectors:
-    df_cy_filt = df_cy_filt[df_cy_filt["okved_section"].isin(sel_sectors)]
-
-_filtered_names = df_cy_filt["company_name"].dropna().unique().tolist()
-df_an_filt = df_an[df_an["company_name"].isin(_filtered_names)]
-df_hf_filt = df_hf[df_hf["company_name"].isin(_filtered_names)]
-
-with st.sidebar:
-    st.caption(f"Компаний: **{len(df_cy_filt)}** из {len(df_cy[df_cy['year']==sel_year])}")
-
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Обзор",
-    "Аномалии",
-    "Профиль компании",
-    "Групповые сигналы",
-    "Гипотезы",
-])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Обзор", "Аномалии", "Профиль компании", "Групповые сигналы", "Гипотезы"])
 
 with tab1:
     from pages.tab_overview import render_overview
-    render_overview(df_cy_filt, df_hs, data)
+    render_overview(df_cy, df_hs)
 
 with tab2:
     from pages.tab_anomalies import render_anomalies
-    render_anomalies(df_an_filt)
+    render_anomalies(df_an)
 
 with tab3:
     from pages.tab_company import render_company
@@ -181,4 +127,4 @@ with tab4:
 
 with tab5:
     from pages.tab_hypotheses import render_hypotheses
-    render_hypotheses(df_hs, df_an_filt)
+    render_hypotheses(df_hs, df_an)
