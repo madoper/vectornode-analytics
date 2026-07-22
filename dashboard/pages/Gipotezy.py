@@ -62,4 +62,4 @@ if not scatter.empty:
     if st.button("🔍 Перейти к компании", key="goto_company"):
         top = display.iloc[0]
         st.session_state["selected_company"] = top["company_id"]
-        st.switch_page("pages/2_Kompania.py")
+        st.rerun()

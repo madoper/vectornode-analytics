@@ -1,6 +1,10 @@
 import streamlit as st
 from db import engine
 from sqlalchemy import text
+import pages.Obzor as page_obzor
+import pages.Kompania as page_kompania
+import pages.Gipotezy as page_gipotezy
+import pages.Gruppy as page_gruppy
 
 st.set_page_config(
     page_title="ФНС Аналитика",
@@ -9,14 +13,22 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.sidebar.markdown("# ФНС Аналитика")
-st.sidebar.caption("Система риск-мониторинга")
-
 try:
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
-    st.success("✅ Подключение к БД установлено")
 except Exception as e:
-    st.error(f"⚠️ Нет подключения к БД: {e}")
+    st.error(f"Нет подключения к БД: {e}")
+    st.stop()
 
-st.info("Выберите дашборд в боковом меню слева")
+pages = {
+    "Обзор": page_obzor,
+    "Компания": page_kompania,
+    "Гипотезы": page_gipotezy,
+    "Группы": page_gruppy,
+}
+
+sel = st.sidebar.radio("Дашборд", list(pages.keys()))
+st.sidebar.markdown("---")
+st.sidebar.caption("ФНС Аналитика — система риск-мониторинга")
+
+pages[sel].render()
