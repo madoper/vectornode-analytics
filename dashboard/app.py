@@ -13,20 +13,20 @@ df_hs = data["hypothesis_summary"]
 # ── Sidebar: manual data test ──
 st.sidebar.header("Фильтры")
 
-sel_year = st.sidebar.selectbox("Год", [2023, 2024, 2025], index=2, key="g_year")
+sel_year = st.sidebar.selectbox("Год", [2023, 2024, 2025], index=2)
 
-sel_region = st.sidebar.selectbox("Регион", ["Все", "Москва", "СПб"], index=0, key="g_region")
+sel_region = st.sidebar.selectbox("Регион", ["Все", "Москва", "СПб"], index=0)
 
-sel_sector = st.sidebar.selectbox("Отрасль", ["Все", "IT", "Пром"], index=0, key="g_sector")
+sel_sector = st.sidebar.selectbox("Отрасль", ["Все", "IT", "Пром"], index=0)
 
 hyps_all = sorted(df_an["hypothesis_code"].unique().tolist())
-sel_hyps = st.sidebar.multiselect("Гипотеза", hyps_all, default=hyps_all, key="g_hyps")
+sel_hyps = st.sidebar.multiselect("Гипотеза", hyps_all, default=hyps_all)
 
 interps_all = sorted(df_an["interpretation"].unique().tolist())
-sel_interps = st.sidebar.multiselect("Интерпретация", interps_all, default=interps_all, key="g_interps")
+sel_interps = st.sidebar.multiselect("Интерпретация", interps_all, default=interps_all)
 
 crits_all = sorted(df_an["criticality"].unique().tolist())
-sel_crits = st.sidebar.multiselect("Критичность", crits_all, default=crits_all, key="g_crits")
+sel_crits = st.sidebar.multiselect("Критичность", crits_all, default=crits_all)
 
 st.sidebar.markdown(f"Компаний: **{len(df_cy)}**")
 st.sidebar.divider()
