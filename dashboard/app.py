@@ -17,6 +17,7 @@ df_gs = data["group_signal"]
 df_hs = data["hypothesis_summary"]
 
 # === SIDEBAR ===
+st.sidebar.write("✅ Sidebar active")
 st.sidebar.header("Фильтры")
 
 # (A) Overview filters (year, region, sector) — apply to all tabs
