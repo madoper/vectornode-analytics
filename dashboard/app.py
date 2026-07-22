@@ -36,6 +36,12 @@ with st.sidebar:
     years = sorted(int(x) for x in df_cy["year"].unique())
     sel_year = st.selectbox("Год", years, index=len(years) - 1, key="g_year")
 
+    regions = sorted(df_cy["region"].dropna().unique().tolist())
+    sel_regions = st.selectbox("Регион", ["Все"] + regions, index=0, key="g_regions")
+
+    sectors = sorted(df_cy["okved_section"].dropna().unique().tolist())
+    sel_sectors = st.selectbox("Отрасль", ["Все"] + sectors, index=0, key="g_sectors")
+
     hyps_all = sorted(df_an["hypothesis_code"].unique().tolist())
     sel_hyps = st.multiselect("Гипотеза", hyps_all, default=hyps_all, key="g_hyps")
 
@@ -45,14 +51,6 @@ with st.sidebar:
     crits_all = sorted(df_an["criticality"].unique().tolist())
     sel_crits = st.multiselect("Критичность", crits_all, default=crits_all, key="g_crits")
 
-    # Region and Sector — diagnostic: simple write first
-    regions = df_cy["region"].dropna().unique().tolist()
-    st.write(f"Регионов: {len(regions)}")
-    sectors = df_cy["okved_section"].dropna().unique().tolist()
-    st.write(f"Отраслей: {len(sectors)}")
-    sel_regions = st.multiselect("Регион", regions, key="g_regions")
-    sel_sectors = st.multiselect("Отрасль", sectors, key="g_sectors")
-
     st.markdown(f"Компаний: **{len(df_cy)}**")
     st.divider()
     st.caption("Легенда")
@@ -61,10 +59,10 @@ with st.sidebar:
     st.caption("none / low / medium / high / critical")
 
 mask_cy = (df_cy["year"] == sel_year)
-if sel_regions:
-    mask_cy &= df_cy["region"].isin(sel_regions)
-if sel_sectors:
-    mask_cy &= df_cy["okved_section"].isin(sel_sectors)
+if sel_regions != "Все":
+    mask_cy &= df_cy["region"] == sel_regions
+if sel_sectors != "Все":
+    mask_cy &= df_cy["okved_section"] == sel_sectors
 df_cy_f = df_cy[mask_cy]
 
 f_names = df_cy_f["company_name"].dropna().unique().tolist()
