@@ -7,16 +7,16 @@ from queries import *
 from config import RESUME_TEXT, KEY_COMPANIES, CRIT_COLORS
 from components import kpi_card, export_button
 
-st.title("Обзор")
+st.markdown("### Обзор")
 
 with engine.connect() as conn:
     kpi = conn.execute(text(Q_KPI)).fetchone()
 
-col1, col2, col3, col4 = st.columns(4)
-with col1: st.markdown(kpi_card("Компаний в анализе", kpi[0], "#4DA6FF"), unsafe_allow_html=True)
-with col2: st.markdown(kpi_card("Критических аномалий", kpi[1], "#ff4b4b"), unsafe_allow_html=True)
-with col3: st.markdown(kpi_card("Risk-компаний", kpi[2], "#ff9f43"), unsafe_allow_html=True)
-with col4: st.markdown(kpi_card("Период", kpi[3], "#2ed573"), unsafe_allow_html=True)
+c1, c2, c3, c4 = st.columns(4)
+with c1: st.markdown(kpi_card("Компаний в анализе", kpi[0], "#4DA6FF"), unsafe_allow_html=True)
+with c2: st.markdown(kpi_card("Критических аномалий", kpi[1], "#ff4b4b"), unsafe_allow_html=True)
+with c3: st.markdown(kpi_card("Risk-компаний", kpi[2], "#ff9f43"), unsafe_allow_html=True)
+with c4: st.markdown(kpi_card("Период", kpi[3], "#2ed573"), unsafe_allow_html=True)
 
 with st.expander("Итоговое резюме", expanded=True):
     st.markdown(RESUME_TEXT)
@@ -37,16 +37,16 @@ with engine.connect() as conn:
 
 def card(col, title, color, items, fields):
     with col:
-        html = f'<div style="border:2px solid {color};border-radius:8px;padding:8px;height:380px;overflow-y:auto"><h5 style="color:{color}">{title}</h5>'
+        h = f'<div style="border:2px solid {color};border-radius:8px;padding:8px;height:380px;overflow-y:auto"><h5 style="color:{color}">{title}</h5>'
         for it in items:
-            name = getattr(it, "company_name", "") or it[1]
-            html += f"<b>{name}</b><br>"
+            n = getattr(it, "company_name", "") or it[1]
+            h += f"<b>{n}</b><br>"
             for i, f in enumerate(fields):
                 v = getattr(it, f, None) or (it[i + 2] if len(it) > i + 2 else "")
-                html += f"<small>{f}: {v}</small><br>"
-            html += "<hr>"
-        html += "</div>"
-        st.markdown(html, unsafe_allow_html=True)
+                h += f"<small>{f}: {v}</small><br>"
+            h += "<hr>"
+        h += "</div>"
+        st.markdown(h, unsafe_allow_html=True)
 
 c1, c2, c3, c4, c5 = st.columns(5)
 card(c1, "Вывод средств H1", "#ff4b4b", h1, ["dividends_paid", "net_profit"])
@@ -66,9 +66,4 @@ with c2:
     st.plotly_chart(px.treemap(hs, path=["hypothesis_code"], values="findings_count",
                                 color="criticality", color_discrete_map=CRIT_COLORS), use_container_width=True)
 
-st.markdown("""**Рекомендации:**
-1. Выездные проверки: C0254, C0069, C0008, C0288.
-2. Сверка: C0473, C0385.
-3. Пояснения: C0380, C0308.
-4. Анализ групп founder_id на дробление.
-""")
+st.markdown("""**Рекомендации:** 1) Выездные проверки: C0254, C0069, C0008, C0288. 2) Сверка: C0473, C0385. 3) Пояснения: C0380, C0308. 4) Анализ групп founder_id.""")

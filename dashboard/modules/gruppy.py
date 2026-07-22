@@ -7,7 +7,7 @@ from queries import Q_GROUPS
 from config import CRIT_COLORS
 from components import export_button
 
-st.title("Групповой анализ")
+st.markdown("### Групповой анализ")
 
 gtype = st.radio("Тип группы", ["founder", "address"], horizontal=True)
 
@@ -18,7 +18,7 @@ if grp.empty:
     st.info("Нет данных")
     st.stop()
 
-st.markdown(f"### Всего групп: {len(grp)}")
+st.markdown(f"#### Всего групп: {len(grp)}")
 st.dataframe(grp.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality_final'],'')};color:#FFF" if r['criticality_final'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
 export_button(grp, f"groups_{gtype}.csv")
 

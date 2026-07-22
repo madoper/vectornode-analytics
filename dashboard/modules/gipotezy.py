@@ -7,7 +7,7 @@ from queries import *
 from config import CRIT_COLORS, HYPOTHESIS_LABELS
 from components import export_button
 
-st.title("Анализ гипотез")
+st.markdown("### Анализ гипотез")
 
 with engine.connect() as conn:
     hs = pd.read_sql(text(Q_HYPOTHESIS_SUMMARY), conn)
@@ -26,7 +26,7 @@ y = st.selectbox("Год", ["Все"] + [str(y) for y in yrs])
 with engine.connect() as conn:
     sc = pd.read_sql(text(Q_ANOMALY_SCATTER), conn, params={"h": h, "y": None if y == "Все" else int(y)})
 
-sc_z = sc.dropna(subset=["zscore"]).copy()
+sc_z = sc.dropna(subset=["zscore"])
 if not sc_z.empty:
     fig = px.scatter(sc_z, x="value", y="zscore", color="criticality",
                      size=sc_z["net_profit"].abs().clip(upper=sc_z["net_profit"].abs().quantile(0.95)),
@@ -40,9 +40,9 @@ if not sc_z.empty:
 else:
     st.info("Нет данных с z-score")
 
-st.markdown("#### Компании")
 if not sc.empty:
     disp = sc.sort_values("zscore", key=lambda x: x.abs(), ascending=False)
+    st.markdown("#### Компании")
     st.dataframe(disp, use_container_width=True, hide_index=True)
     if st.button("Перейти к компании"):
         st.session_state["selected_company"] = disp.iloc[0]["company_id"]

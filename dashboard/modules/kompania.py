@@ -8,22 +8,22 @@ from queries import *
 from config import CRIT_COLORS
 from components import kpi_card, fmt_currency, fmt_pct, verdict_badge, export_button
 
-st.title("Профиль компании")
+st.markdown("### Профиль компании")
 
 with engine.connect() as conn:
     companies = conn.execute(text(Q_ALL_COMPANIES)).fetchall()
-comp_opts = {f"{c.company_id} — {c.company_name}": c.company_id for c in companies}
+opts = {f"{c.company_id} — {c.company_name}": c.company_id for c in companies}
 
 idx = 0
 if "selected_company" in st.session_state:
-    for i, (l, cid) in enumerate(comp_opts.items()):
+    for i, (l, cid) in enumerate(opts.items()):
         if cid == st.session_state["selected_company"]:
             idx = i
             break
     del st.session_state["selected_company"]
 
-sel = st.selectbox("Компания", list(comp_opts.keys()), index=idx)
-cid = comp_opts[sel]
+sel = st.selectbox("Компания", list(opts.keys()), index=idx)
+cid = opts[sel]
 
 with engine.connect() as conn:
     tl = pd.read_sql(text(Q_COMPANY_TIMELINE), conn, params={"cid": cid})
@@ -34,10 +34,9 @@ if tl.empty:
     st.warning("Нет данных")
     st.stop()
 
-last = tl.iloc[-1]
 
 last = tl.iloc[-1]
-st.markdown(f"### {sel}")
+st.markdown(f"#### {sel}")
 
 c1, c2, c3, c4 = st.columns(4)
 with c1: st.markdown(kpi_card("Выручка", fmt_currency(last["revenue"]), "#4DA6FF"), unsafe_allow_html=True)
@@ -53,7 +52,8 @@ with c4:
     badge = verdict_badge(last)
     clr = "#ff4b4b" if "КРИТИЧЕСКИЙ" in badge else "#ff9f43" if "ВЫСОКИЙ" in badge else "#2ed573"
     st.markdown(kpi_card("Статус", badge.split("—")[0].strip(), clr), unsafe_allow_html=True)
-st.markdown(f'<div style="padding:8px;background:#333;border-radius:8px;color:#FFF">{badge}</div>', unsafe_allow_html=True)
+
+st.markdown(f'<div style="padding:8px;background:#333;border-radius:8px;color:#FFF;margin-bottom:16px">{badge}</div>', unsafe_allow_html=True)
 
 c1, c2 = st.columns(2)
 with c1:
@@ -78,7 +78,7 @@ fig.update_layout(title="Штат и производительность")
 st.plotly_chart(fig, use_container_width=True)
 
 if not an.empty:
-    st.markdown("#### Аномалии")
+    st.markdown("#### Аномалии компании")
     st.dataframe(an.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality'],'')};color:#FFF" if r['criticality'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
     export_button(an, f"{cid}_anomalies.csv")
 
