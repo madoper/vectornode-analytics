@@ -28,7 +28,7 @@ page = pages[sel]
 
 # ======================== PAGE 0: OVERVIEW ========================
 if page == 0:
-    st.markdown("## <i class='material-icons'>bar_chart</i> Обзор")
+    st.markdown("## <i class='material-icons'>bar_chart</i> Обзор", unsafe_allow_html=True)
     with engine.connect() as conn:
         kpi = conn.execute(text(Q_KPI)).fetchone()
 
@@ -85,7 +85,7 @@ if page == 0:
 
 # ======================== PAGE 1: COMPANY ========================
 elif page == 1:
-    st.markdown("## <i class='material-icons'>business</i> Профиль компании")
+    st.markdown("## <i class='material-icons'>business</i> Профиль компании", unsafe_allow_html=True)
     with engine.connect() as conn:
         companies = conn.execute(text(Q_ALL_COMPANIES)).fetchall()
     opts = {f"{c.company_id} — {c.company_name}": c.company_id for c in companies}
@@ -155,7 +155,7 @@ elif page == 1:
 
 # ======================== PAGE 2: HYPOTHESES ========================
 elif page == 2:
-    st.markdown("## <i class='material-icons'>science</i> Анализ гипотез")
+    st.markdown("## <i class='material-icons'>science</i> Анализ гипотез", unsafe_allow_html=True)
     with engine.connect() as conn:
         hs = pd.read_sql(text(Q_HYPOTHESIS_SUMMARY), conn)
     st.dataframe(hs.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality'],'')}" if r['criticality'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
@@ -193,7 +193,7 @@ elif page == 2:
 
 # ======================== PAGE 3: GROUPS ========================
 elif page == 3:
-    st.markdown("## <i class='material-icons'>groups</i> Групповой анализ")
+    st.markdown("## <i class='material-icons'>groups</i> Групповой анализ", unsafe_allow_html=True)
     gtype = st.radio("Тип группы", ["founder", "address"], horizontal=True)
     with engine.connect() as conn:
         grp = pd.read_sql(text(Q_GROUPS), conn, params={"gtype": gtype})
