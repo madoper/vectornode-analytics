@@ -239,9 +239,25 @@ def build_zscore(**context):
         tmp = df[["company_id", "year", "okved_section", metric]].dropna(subset=[metric]).copy()
         if tmp.empty:
             continue
-        tmp["zscore"] = tmp.groupby(["okved_section", "year"])[metric].transform(robust_zscore_series)
+        # Check peer group size - fallback if too small
+        peer_size = tmp.groupby(["okved_section", "year"]).size()
+        small_peers = peer_size[peer_size < 10].index.tolist()
+        tmp["peer_group"] = "okved_year"
+        for okved, yr in small_peers:
+            mask = (tmp["okved_section"] == okved) & (tmp["year"] == yr)
+            tmp.loc[mask, "peer_group"] = "year_fallback"
+        # Calculate z-score by okved+year
+        mask_okved = tmp["peer_group"] == "okved_year"
+        if mask_okved.any():
+            tmp.loc[mask_okved, "zscore"] = tmp.loc[mask_okved].groupby(
+                ["okved_section", "year"])[metric].transform(robust_zscore_series)
+        # Fallback: z-score by year only
+        mask_fallback = tmp["peer_group"] == "year_fallback"
+        if mask_fallback.any():
+            tmp.loc[mask_fallback, "zscore"] = tmp.loc[mask_fallback].groupby(
+                "year")[metric].transform(robust_zscore_series)
         tmp["metric"] = metric
-        records.append(tmp[["company_id", "year", "metric", "zscore"]])
+        records.append(tmp[["company_id", "year", "metric", "zscore", "peer_group"]])
 
     if not records:
         raise ValueError("No zscore records calculated")
@@ -302,19 +318,23 @@ def detect_anomalies(**context):
     for _, row in df.iterrows():
         flags = 0
         risk_flags = 0
+        trigger_details = []
 
         # H1 - dividend policy
         if pd.notna(row["dividends_paid"]) and row["dividends_paid"] > 0:
             if pd.notna(row["net_profit"]) and row["net_profit"] <= 0:
                 flags += 1; risk_flags += 1
+                trigger_details.append("H1(div_at_loss)")
                 add_a(row, "H1", "dividends_paid", row["dividends_paid"], None,
                       "risk", "Дивиденды выплачены при убытке. Агрессивная дивидендная политика или вывод средств.", "critical", 4)
             elif pd.notna(row["payout_ratio"]) and row["payout_ratio"] >= th["payout_critical"]:
                 flags += 1; risk_flags += 1
+                trigger_details.append(f"H1(payout={row['payout_ratio']:.1f})")
                 add_a(row, "H1", "payout_ratio", row["payout_ratio"], None,
                       "risk", f"payout_ratio >= {th['payout_critical']}. Агрессивная дивидендная политика.", "critical", 4)
             elif pd.notna(row["payout_ratio"]) and row["payout_ratio"] >= th["payout_high"]:
                 flags += 1; risk_flags += 1
+                trigger_details.append(f"H1(payout={row['payout_ratio']:.1f})")
                 add_a(row, "H1", "payout_ratio", row["payout_ratio"], None,
                       "risk", f"payout_ratio >= {th['payout_high']}. Повышенная дивидендная нагрузка.", "high", 3)
 
@@ -323,10 +343,12 @@ def detect_anomalies(**context):
                 and row["rev_growth"] >= th["rev_growth_high"] and row["emp_growth"] <= th["emp_growth_high"]:
             flags += 1
             if pd.notna(row["rev_per_emp_zscore"]) and row["rev_per_emp_zscore"] >= th["z_high"]:
+                trigger_details.append("H2(signal)")
                 add_a(row, "H2", "rev_growth", row["rev_growth"], row["rev_per_emp_zscore"],
                       "economic_signal", "Рост выручки при сокращении штата с ростом rev_per_emp. Автоматизация/аутсорсинг.", "medium", 2)
             else:
                 risk_flags += 1
+                trigger_details.append("H2(risk)")
                 add_a(row, "H2", "rev_growth", row["rev_growth"], row["rev_per_emp_zscore"],
                       "risk", "Рост выручки при сокращении штата без роста производительности.", "high", 3)
 
@@ -335,18 +357,22 @@ def detect_anomalies(**context):
             z = row["net_margin_zscore"]
             if z >= th["z_critical"]:
                 flags += 1
+                trigger_details.append(f"H3(+{z:.1f})")
                 add_a(row, "H3", "net_margin", row["net_margin"], z,
                       "economic_signal", "Маржа существенно выше отрасли. Высокая эффективность или ценовое преимущество.", "medium", 2)
             elif z <= -th["z_critical"]:
                 flags += 1; risk_flags += 1
+                trigger_details.append(f"H3({z:.1f})")
                 add_a(row, "H3", "net_margin", row["net_margin"], z,
                       "risk", "Маржа существенно ниже отрасли. Аномалия учёта, демпинг или скрытые расходы.", "critical", 4)
             elif z >= th["z_high"]:
                 flags += 1
+                trigger_details.append(f"H3(+{z:.1f})")
                 add_a(row, "H3", "net_margin", row["net_margin"], z,
                       "economic_signal", "Маржа выше отрасли. Повышенная эффективность.", "low", 1)
             elif z <= -th["z_high"]:
                 flags += 1; risk_flags += 1
+                trigger_details.append(f"H3({z:.1f})")
                 add_a(row, "H3", "net_margin", row["net_margin"], z,
                       "risk", "Маржа ниже отрасли. Возможны операционные проблемы.", "high", 3)
 
@@ -355,36 +381,56 @@ def detect_anomalies(**context):
             fpr = row["financial_pressure_ratio"]
             if fpr >= th["fin_pressure_critical"]:
                 flags += 1; risk_flags += 1
+                trigger_details.append(f"H4(fpr={fpr:.2f})")
                 add_a(row, "H4", "financial_pressure_ratio", fpr, row.get("financial_pressure_zscore"),
                       "risk", "Высокое финансовое давление: opex+налоги+дивиденды слабо покрываются валовой прибылью.", "critical", 4)
             elif fpr >= th["fin_pressure_high"]:
                 flags += 1; risk_flags += 1
+                trigger_details.append(f"H4(fpr={fpr:.2f})")
                 add_a(row, "H4", "financial_pressure_ratio", fpr, row.get("financial_pressure_zscore"),
                       "risk", "Повышенное финансовое давление по прокси-индикатору.", "high", 3)
 
-        # H5 - rev_per_emp outlier (sign-aware)
+        # H5 - rev_per_emp outlier (sign-aware, micro-company check)
         if pd.notna(row["rev_per_emp_zscore"]):
             z = row["rev_per_emp_zscore"]
+            is_micro = pd.notna(row["headcount"]) and row["headcount"] <= 3
             if z >= th["z_critical"]:
                 flags += 1
-                crit = "critical" if pd.notna(row["headcount"]) and row["headcount"] <= 5 else "high"
-                add_a(row, "H5", "rev_per_emp", row["rev_per_emp"], z,
-                      "economic_signal",
-                      "Выручка на сотрудника выше отрасли. Автоматизация, крупный контракт или транзитные операции.", "high", 3)
+                if is_micro:
+                    risk_flags += 1
+                    trigger_details.append(f"H5(+{z:.1f},micro)")
+                    add_a(row, "H5", "rev_per_emp", row["rev_per_emp"], z,
+                          "risk",
+                          f"Экстремальная выручка на сотрудника при headcount={int(row['headcount'])}. "
+                          "Вероятны транзитные операции или ошибка в данных.",
+                          "critical", 4)
+                else:
+                    trigger_details.append(f"H5(+{z:.1f})")
+                    add_a(row, "H5", "rev_per_emp", row["rev_per_emp"], z,
+                          "economic_signal",
+                          "Выручка на сотрудника выше отрасли. Автоматизация, крупный контракт или высокая эффективность.",
+                          "medium", 2)
             elif z <= -th["z_critical"]:
                 flags += 1; risk_flags += 1
+                trigger_details.append(f"H5({z:.1f})")
                 add_a(row, "H5", "rev_per_emp", row["rev_per_emp"], z,
                       "risk",
-                      "Выручка на сотрудника ниже отрасли. Возможна низкая производительность или избыточный штат.", "critical", 4)
+                      "Выручка на сотрудника ниже отрасли. Возможна низкая производительность или избыточный штат.",
+                      "critical", 4)
 
         # H6 - multi-flag
         if flags >= th["multi_flags_critical"]:
+            details = ", ".join(trigger_details)
             if risk_flags >= 2:
                 add_a(row, "H6", "multi_flags", float(flags), None,
-                      "risk", f"Сработало {flags} флагов (рисковых: {risk_flags}). Многомерная аномалия.", "critical", 4)
+                      "risk",
+                      f"Сработало {flags} флагов (рисковых: {risk_flags}): {details}. Многомерная аномалия.",
+                      "critical", 4)
             else:
                 add_a(row, "H6", "multi_flags", float(flags), None,
-                      "economic_signal", f"Сработало {flags} флагов, большинство экономически объяснимо.", "medium", 2)
+                      "economic_signal",
+                      f"Сработало {flags} флагов: {details}. Большинство экономически объяснимо.",
+                      "medium", 2)
 
     a_df = pd.DataFrame(anomalies)
     if a_df.empty:
@@ -522,6 +568,299 @@ def build_group_signals(**context):
     return {"elapsed_sec": round(elapsed, 2), "group_signal_rows": int(len(groups))}
 
 
+def build_rpt_anomaly(**context):
+    import time
+    start = time.time()
+    engine = get_engine()
+    from sqlalchemy import text
+
+    query = """
+        SELECT a.company_id, c.company_name, a.year, c.region, c.okved_section,
+               a.hypothesis_code, a.metric, a.value, a.zscore,
+               a.interpretation, a.interpretation_reason,
+               a.criticality, a.criticality_score,
+               cy.net_profit, cy.dividends_paid, cy.headcount,
+               cf.payout_ratio, cf.tax_to_profit, cf.financial_pressure_ratio,
+               cg.rev_growth, cg.emp_growth
+        FROM analytics.anomaly a
+        JOIN analytics.company c ON c.company_id = a.company_id
+        JOIN analytics.company_year cy ON cy.company_id = a.company_id AND cy.year = a.year
+        LEFT JOIN analytics.company_features cf ON cf.company_id = a.company_id AND cf.year = a.year
+        LEFT JOIN analytics.company_growth cg ON cg.company_id = a.company_id AND cg.year = a.year
+        ORDER BY a.company_id, a.year, a.hypothesis_code
+    """
+    df = read_sql_df(query, engine)
+    schema = "reporting"
+    fairy = engine.raw_connection()
+    try:
+        cur = fairy.connection.cursor()
+        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+        fairy.connection.commit()
+        cur.close()
+    finally:
+        fairy.close()
+
+    df_to_sql_copy(df, "rpt_anomaly", engine, schema=schema)
+
+    elapsed = time.time() - start
+    return {"elapsed_sec": round(elapsed, 2), "rows": int(len(df))}
+
+
+def build_rpt_company_hypothesis_flags(**context):
+    import time
+    start = time.time()
+    engine = get_engine()
+
+    schema = "reporting"
+    fairy = engine.raw_connection()
+    try:
+        cur = fairy.connection.cursor()
+        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+        cur.execute(f"DROP TABLE IF EXISTS {schema}.rpt_company_hypothesis_flags CASCADE")
+        flags_sql = """
+        CREATE TABLE reporting.rpt_company_hypothesis_flags AS
+        SELECT
+            c.company_id, c.company_name, cy.year, c.region, c.okved_section,
+            COALESCE(MAX(CASE WHEN a.hypothesis_code = 'H1' THEN 1 END), 0) AS h1_flag,
+            COALESCE(MAX(CASE WHEN a.hypothesis_code = 'H2' THEN 1 END), 0) AS h2_flag,
+            COALESCE(MAX(CASE WHEN a.hypothesis_code = 'H3' THEN 1 END), 0) AS h3_flag,
+            COALESCE(MAX(CASE WHEN a.hypothesis_code = 'H4' THEN 1 END), 0) AS h4_flag,
+            COALESCE(MAX(CASE WHEN a.hypothesis_code = 'H5' THEN 1 END), 0) AS h5_flag,
+            COALESCE(MAX(CASE WHEN a.hypothesis_code = 'H6' THEN 1 END), 0) AS h6_flag,
+            MAX(CASE WHEN a.hypothesis_code = 'H1' THEN a.criticality END) AS h1_criticality,
+            MAX(CASE WHEN a.hypothesis_code = 'H2' THEN a.criticality END) AS h2_criticality,
+            MAX(CASE WHEN a.hypothesis_code = 'H3' THEN a.criticality END) AS h3_criticality,
+            MAX(CASE WHEN a.hypothesis_code = 'H4' THEN a.criticality END) AS h4_criticality,
+            MAX(CASE WHEN a.hypothesis_code = 'H5' THEN a.criticality END) AS h5_criticality,
+            MAX(CASE WHEN a.hypothesis_code = 'H6' THEN a.criticality END) AS h6_criticality,
+            MAX(CASE WHEN a.hypothesis_code = 'H1' THEN a.interpretation_reason END) AS h1_reason,
+            MAX(CASE WHEN a.hypothesis_code = 'H2' THEN a.interpretation_reason END) AS h2_reason,
+            MAX(CASE WHEN a.hypothesis_code = 'H3' THEN a.interpretation_reason END) AS h3_reason,
+            MAX(CASE WHEN a.hypothesis_code = 'H4' THEN a.interpretation_reason END) AS h4_reason,
+            MAX(CASE WHEN a.hypothesis_code = 'H5' THEN a.interpretation_reason END) AS h5_reason,
+            MAX(CASE WHEN a.hypothesis_code = 'H6' THEN a.interpretation_reason END) AS h6_reason,
+            COUNT(a.hypothesis_code) AS anomaly_count,
+            COALESCE(MAX(a.criticality_score), 0) AS max_criticality_score
+        FROM analytics.company c
+        JOIN analytics.company_year cy ON cy.company_id = c.company_id
+        LEFT JOIN analytics.anomaly a ON a.company_id = c.company_id AND a.year = cy.year
+        GROUP BY c.company_id, c.company_name, cy.year, c.region, c.okved_section
+        """
+        cur.execute(flags_sql)
+        fairy.connection.commit()
+        cur.close()
+    finally:
+        fairy.close()
+
+    elapsed = time.time() - start
+    return {"elapsed_sec": round(elapsed, 2)}
+
+
+def build_rpt_company_year(**context):
+    import time
+    start = time.time()
+    engine = get_engine()
+
+    schema = "reporting"
+    fairy = engine.raw_connection()
+    try:
+        cur = fairy.connection.cursor()
+        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+        cur.execute(f"DROP TABLE IF EXISTS {schema}.rpt_company_year CASCADE")
+        rpt_sql = """
+        CREATE TABLE reporting.rpt_company_year AS
+        SELECT
+            c.company_id, c.company_name, c.region, c.okved_section,
+            cy.year,
+            (cy.year::text || '-12-31')::date AS period_date,
+            cy.revenue, cy.net_profit, cy.dividends_paid, cy.headcount,
+            cf.net_margin, cf.payout_ratio AS payout_ratio_valid,
+            cf.tax_to_profit AS tax_to_profit_valid,
+            cf.financial_pressure_ratio,
+            cg.rev_growth, cg.emp_growth,
+            cg.profit_growth_type,
+            z_net_margin.zscore     AS net_margin_z,
+            z_rev_per_emp.zscore    AS rev_per_emp_z,
+            z_fin_pressure.zscore   AS financial_pressure_z,
+            z_rev_growth.zscore     AS rev_growth_z,
+            z_emp_growth.zscore     AS emp_growth_z,
+            COALESCE(a_stats.anomaly_count, 0) AS anomaly_count,
+            COALESCE(a_stats.risk_anomaly_count, 0) AS risk_anomaly_count,
+            COALESCE(a_stats.signal_anomaly_count, 0) AS signal_anomaly_count,
+            COALESCE(a_stats.critical_anomaly_count, 0) AS critical_anomaly_count,
+            a_stats.max_criticality_score,
+            CASE
+                WHEN COALESCE(a_stats.risk_anomaly_count, 0) >= 2 OR
+                     COALESCE(a_stats.critical_anomaly_count, 0) >= 1 THEN 'critical'
+                WHEN COALESCE(a_stats.risk_anomaly_count, 0) >= 1 THEN 'high'
+                WHEN COALESCE(a_stats.anomaly_count, 0) >= 1 THEN 'medium'
+                ELSE 'none'
+            END AS criticality_final,
+            CASE WHEN COALESCE(a_stats.risk_anomaly_count, 0) > 0 THEN 1 ELSE 0 END AS risk_flag,
+            CASE WHEN COALESCE(a_stats.risk_anomaly_count, 0) = 0
+                  AND COALESCE(a_stats.anomaly_count, 0) > 0 THEN 1 ELSE 0 END AS signal_only_flag,
+            a_stats.top_hypothesis_code,
+            a_stats.top_interpretation,
+            a_stats.top_reason,
+            CASE WHEN cy.year = (SELECT MAX(year) FROM analytics.company_year) THEN 1 ELSE 0 END AS is_latest_year
+        FROM analytics.company c
+        JOIN analytics.company_year cy ON cy.company_id = c.company_id
+        LEFT JOIN analytics.company_features cf ON cf.company_id = cy.company_id AND cf.year = cy.year
+        LEFT JOIN analytics.company_growth cg ON cg.company_id = cy.company_id AND cg.year = cy.year
+        LEFT JOIN analytics.company_zscore z_net_margin
+            ON z_net_margin.company_id = cy.company_id AND z_net_margin.year = cy.year
+           AND z_net_margin.metric = 'net_margin'
+        LEFT JOIN analytics.company_zscore z_rev_per_emp
+            ON z_rev_per_emp.company_id = cy.company_id AND z_rev_per_emp.year = cy.year
+           AND z_rev_per_emp.metric = 'rev_per_emp'
+        LEFT JOIN analytics.company_zscore z_fin_pressure
+            ON z_fin_pressure.company_id = cy.company_id AND z_fin_pressure.year = cy.year
+           AND z_fin_pressure.metric = 'financial_pressure_ratio'
+        LEFT JOIN analytics.company_zscore z_rev_growth
+            ON z_rev_growth.company_id = cy.company_id AND z_rev_growth.year = cy.year
+           AND z_rev_growth.metric = 'rev_growth'
+        LEFT JOIN analytics.company_zscore z_emp_growth
+            ON z_emp_growth.company_id = cy.company_id AND z_emp_growth.year = cy.year
+           AND z_emp_growth.metric = 'emp_growth'
+        LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS anomaly_count,
+                   SUM(CASE WHEN a.interpretation = 'risk' THEN 1 ELSE 0 END) AS risk_anomaly_count,
+                   SUM(CASE WHEN a.interpretation = 'economic_signal' THEN 1 ELSE 0 END) AS signal_anomaly_count,
+                   SUM(CASE WHEN a.criticality = 'critical' THEN 1 ELSE 0 END) AS critical_anomaly_count,
+                   MAX(a.criticality_score) AS max_criticality_score,
+                   (ARRAY_AGG(a.hypothesis_code ORDER BY a.criticality_score DESC))[1] AS top_hypothesis_code,
+                   (ARRAY_AGG(a.interpretation ORDER BY a.criticality_score DESC))[1] AS top_interpretation,
+                   (ARRAY_AGG(a.interpretation_reason ORDER BY a.criticality_score DESC))[1] AS top_reason
+            FROM analytics.anomaly a
+            WHERE a.company_id = c.company_id AND a.year = cy.year
+        ) a_stats ON true
+        """
+        cur.execute(rpt_sql)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_rpt_cy_company ON reporting.rpt_company_year(company_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_rpt_cy_year ON reporting.rpt_company_year(year)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_rpt_cy_crit ON reporting.rpt_company_year(criticality_final)")
+        fairy.connection.commit()
+        cur.close()
+    finally:
+        fairy.close()
+
+    elapsed = time.time() - start
+    return {"elapsed_sec": round(elapsed, 2)}
+
+
+def build_rpt_group_signal(**context):
+    import time
+    start = time.time()
+    engine = get_engine()
+
+    query = """
+        SELECT c.founder_id, c.address_hash,
+               STRING_AGG(DISTINCT c.company_id, ', ') AS company_ids,
+               a.company_id, a.year,
+               a.criticality_score, a.interpretation
+        FROM analytics.anomaly a
+        JOIN analytics.company c ON c.company_id = a.company_id
+        GROUP BY c.founder_id, c.address_hash, a.company_id, a.year, a.criticality_score, a.interpretation
+    """
+    df = read_sql_df(query, engine)
+
+    if df.empty:
+        return {"group_signal_rows": 0}
+
+    founder = df.dropna(subset=["founder_id"]).groupby("founder_id").agg(
+        companies_count=("company_id", "nunique"),
+        risk_companies_count=("interpretation", lambda x: (x == "risk").sum()),
+        signal_companies_count=("interpretation", lambda x: (x == "economic_signal").sum()),
+        anomaly_count=("company_id", "count"),
+        avg_criticality_score=("criticality_score", "mean"),
+        max_criticality_score=("criticality_score", "max"),
+    ).reset_index()
+    founder["group_type"] = "founder"
+    founder = founder.rename(columns={"founder_id": "group_key"})
+
+    address = df.dropna(subset=["address_hash"]).groupby("address_hash").agg(
+        companies_count=("company_id", "nunique"),
+        risk_companies_count=("interpretation", lambda x: (x == "risk").sum()),
+        signal_companies_count=("interpretation", lambda x: (x == "economic_signal").sum()),
+        anomaly_count=("company_id", "count"),
+        avg_criticality_score=("criticality_score", "mean"),
+        max_criticality_score=("criticality_score", "max"),
+    ).reset_index()
+    address["group_type"] = "address"
+    address = address.rename(columns={"address_hash": "group_key"})
+
+    groups = pd.concat([founder, address], ignore_index=True)
+
+    groups["interpretation_final"] = np.where(
+        (groups["companies_count"] >= 3) & (groups["risk_companies_count"] >= 2),
+        "risk", "neutral",
+    )
+    groups["interpretation_reason_final"] = np.where(
+        groups["interpretation_final"] == "risk",
+        "Связанная группа содержит несколько компаний с рисковыми сигналами.",
+        "Группа не демонстрирует устойчивого рискового паттерна.",
+    )
+    groups["criticality_final"] = np.where(
+        groups["max_criticality_score"] >= 4, "critical",
+        np.where(groups["max_criticality_score"] >= 3, "high",
+        np.where(groups["max_criticality_score"] >= 2, "medium", "low")),
+    )
+
+    schema = "reporting"
+    fairy = engine.raw_connection()
+    try:
+        cur = fairy.connection.cursor()
+        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+        fairy.connection.commit()
+        cur.close()
+    finally:
+        fairy.close()
+
+    groups = groups.rename(columns={
+        "avg_criticality_score": "avg_criticality_score",
+        "max_criticality_score": "max_criticality_score",
+    })
+
+    df_to_sql_copy(groups, "rpt_group_signal", engine, schema=schema)
+
+    elapsed = time.time() - start
+    return {"elapsed_sec": round(elapsed, 2), "group_signal_rows": int(len(groups))}
+
+
+def build_rpt_hypothesis_summary(**context):
+    import time
+    start = time.time()
+    engine = get_engine()
+
+    schema = "reporting"
+    fairy = engine.raw_connection()
+    try:
+        cur = fairy.connection.cursor()
+        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+        cur.execute(f"DROP TABLE IF EXISTS {schema}.rpt_hypothesis_summary CASCADE")
+        summary_sql = """
+        CREATE TABLE reporting.rpt_hypothesis_summary AS
+        SELECT
+            a.hypothesis_code,
+            a.interpretation,
+            a.criticality,
+            COUNT(*) AS findings_count,
+            COUNT(DISTINCT a.company_id) AS companies_count,
+            COUNT(DISTINCT a.company_id || '-' || a.year) AS company_year_count
+        FROM analytics.anomaly a
+        GROUP BY a.hypothesis_code, a.interpretation, a.criticality
+        ORDER BY a.hypothesis_code, findings_count DESC
+        """
+        cur.execute(summary_sql)
+        fairy.connection.commit()
+        cur.close()
+    finally:
+        fairy.close()
+
+    elapsed = time.time() - start
+    return {"elapsed_sec": round(elapsed, 2)}
+
+
 default_args = {
     "owner": "vectornode",
     "retries": 1,
@@ -531,11 +870,11 @@ default_args = {
 with DAG(
     dag_id="vectornode_anomaly_etl",
     default_args=default_args,
-    description="ETL: CSV -> PostgreSQL -> features -> zscore -> anomalies -> Superset",
+    description="ETL: CSV -> PostgreSQL -> features -> zscore -> anomalies -> reporting -> Superset",
     schedule_interval=None,
     start_date=datetime(2026, 1, 1),
     catchup=False,
-    tags=["vectornode", "analytics", "anomaly"],
+    tags=["vectornode", "analytics", "anomaly", "reporting"],
 ) as dag:
 
     t_load_raw = PythonOperator(
@@ -563,4 +902,31 @@ with DAG(
         python_callable=build_group_signals,
     )
 
-    t_load_raw >> t_build_features >> t_build_zscore >> t_detect_anomalies >> t_build_group_signals
+    t_rpt_anomaly = PythonOperator(
+        task_id="build_rpt_anomaly",
+        python_callable=build_rpt_anomaly,
+    )
+
+    t_rpt_hypothesis_flags = PythonOperator(
+        task_id="build_rpt_company_hypothesis_flags",
+        python_callable=build_rpt_company_hypothesis_flags,
+    )
+
+    t_rpt_company_year = PythonOperator(
+        task_id="build_rpt_company_year",
+        python_callable=build_rpt_company_year,
+    )
+
+    t_rpt_group_signal = PythonOperator(
+        task_id="build_rpt_group_signal",
+        python_callable=build_rpt_group_signal,
+    )
+
+    t_rpt_hypothesis_summary = PythonOperator(
+        task_id="build_rpt_hypothesis_summary",
+        python_callable=build_rpt_hypothesis_summary,
+    )
+
+    (t_load_raw >> t_build_features >> t_build_zscore >> t_detect_anomalies
+     >> t_build_group_signals >> t_rpt_anomaly >> t_rpt_hypothesis_flags
+     >> t_rpt_company_year >> t_rpt_group_signal >> t_rpt_hypothesis_summary)
