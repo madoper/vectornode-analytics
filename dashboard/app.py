@@ -176,11 +176,13 @@ elif page == 2:
         fig.add_hline(y=-3, line_dash="dash", line_color="#ff4b4b")
         st.plotly_chart(fig, use_container_width=True)
     if not sc.empty:
-        disp = sc.sort_values("zscore", key=lambda x: x.abs(), ascending=False)
-        st.dataframe(disp, use_container_width=True, hide_index=True)
-        if st.button("Перейти к компании"):
-            st.session_state["selected_company"] = disp.iloc[0]["company_id"]
-            st.rerun()
+        disp = sc.dropna(subset=["zscore"])
+        if not disp.empty:
+            disp = disp.sort_values("zscore", key=lambda x: x.abs(), ascending=False)
+            st.dataframe(disp, use_container_width=True, hide_index=True)
+            if st.button("Перейти к компании"):
+                st.session_state["selected_company"] = disp.iloc[0]["company_id"]
+                st.rerun()
 
 # ======================== PAGE 3: GROUPS ========================
 elif page == 3:
