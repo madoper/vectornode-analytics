@@ -7,6 +7,9 @@ st.markdown("""
 <style>
     .stApp { background-color: #0E1117; }
     footer { visibility: hidden; }
+    section[data-testid="stSidebar"] {
+        z-index: 100 !important;
+    }
     [data-testid="stSidebarCollapseButton"],
     [data-testid="stSidebarCollapseButton"] button {
         background-color: #333 !important;
@@ -14,6 +17,7 @@ st.markdown("""
         border: 1px solid #555 !important;
         opacity: 1 !important;
         border-radius: 4px !important;
+        z-index: 101 !important;
     }
 </style>
 """, unsafe_allow_html=True)
