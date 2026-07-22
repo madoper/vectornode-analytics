@@ -3,13 +3,6 @@ from utils.data_loader import load_all
 
 st.set_page_config(page_title="АНАЛИЗ РИСКОВ", layout="wide", initial_sidebar_state="expanded")
 
-st.markdown("""
-<style>
-    .stApp { background-color: #0E1117; }
-    footer { visibility: hidden; }
-</style>
-""", unsafe_allow_html=True)
-
 data = load_all()
 df_cy = data["company_year"]
 df_an = data["anomaly"]
@@ -17,7 +10,6 @@ df_hf = data["hypothesis_flags"]
 df_gs = data["group_signal"]
 df_hs = data["hypothesis_summary"]
 
-# ── Sidebar filters (direct st.sidebar calls) ──
 st.sidebar.header("Фильтры")
 
 years = sorted(int(x) for x in df_cy["year"].unique())
@@ -45,7 +37,6 @@ st.sidebar.markdown("🔴 Risk — риск-аномалия")
 st.sidebar.markdown("🔵 Economic Signal — экон. сигнал")
 st.sidebar.caption("none / low / medium / high / critical")
 
-# ── Apply filters ──
 mask_cy = (df_cy["year"] == sel_year)
 if sel_region != "Все":
     mask_cy &= df_cy["region"] == sel_region
@@ -64,7 +55,6 @@ df_hf_f = df_hf[df_hf["company_name"].isin(f_names)]
 df_hs_f = df_hs[df_hs["hypothesis_code"].isin(sel_hyps)]
 df_hs_f = df_hs_f[df_hs_f["interpretation"].isin(sel_interps)]
 
-# ── Tabs ──
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Обзор", "Аномалии", "Профиль компании", "Групповые сигналы", "Гипотезы"])
 
 with tab1:
