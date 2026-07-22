@@ -105,3 +105,21 @@ ORDER BY max_criticality_score DESC, anomaly_count DESC;
 Q_HYPOTHESIS_YEARS = """
 SELECT DISTINCT year FROM reporting.rpt_anomaly ORDER BY year;
 """
+
+Q_INDUSTRY_MARGIN = """
+SELECT okved_section, net_margin
+FROM reporting.rpt_company_year
+WHERE year = (SELECT MAX(year) FROM reporting.rpt_company_year)
+  AND net_margin IS NOT NULL
+ORDER BY okved_section;
+"""
+
+Q_INDUSTRY_TAX = """
+SELECT okved_section,
+       ROUND(AVG(tax_to_profit_valid)::numeric, 4) AS avg_tax_to_profit,
+       ROUND(AVG(financial_pressure_ratio)::numeric, 4) AS avg_fpr
+FROM reporting.rpt_company_year
+WHERE is_latest_year = 1
+GROUP BY okved_section
+ORDER BY avg_fpr DESC;
+"""

@@ -19,8 +19,8 @@ except Exception as e:
     st.error(f"Нет подключения к БД: {e}")
     st.stop()
 
-pages = {"▤ Обзор": 0, "◎ Компания": 1, "⚗ Гипотезы": 2, "⊞ Группы": 3}
-sel = st.sidebar.radio("Дашборд", list(pages.keys()))
+pages = {"▤ Обзор": 0, "◎ Компания": 1, "⚗ Гипотезы": 2, "⊞ Группы": 3, "⬡ Отрасли": 4}
+sel = st.sidebar.radio("Дашборд", list(pages.keys()), key="nav_radio")
 st.sidebar.markdown("---")
 st.sidebar.caption("ФНС Аналитика — риск-мониторинг")
 
@@ -245,3 +245,34 @@ elif page == 3:
             "interpretation_final": "Тип"
         })
         st.dataframe(det_disp, use_container_width=True, hide_index=True)
+
+# ======================== PAGE 4: INDUSTRY ========================
+elif page == 4:
+    st.markdown("## <i class='material-icons'>business</i> Отраслевой анализ", unsafe_allow_html=True)
+
+    with engine.connect() as conn:
+        ind_margin = pd.read_sql(text(Q_INDUSTRY_MARGIN), conn)
+        ind_tax = pd.read_sql(text(Q_INDUSTRY_TAX), conn)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### Boxplot: маржа по отраслям")
+        fig1 = px.box(ind_margin, x="okved_section", y="net_margin",
+                       labels={"okved_section": "Отрасль", "net_margin": "Чистая маржа"})
+        fig1.update_xaxes(tickangle=45)
+        st.plotly_chart(fig1, use_container_width=True)
+
+    with c2:
+        st.markdown("#### Среднее фин. давление по отраслям")
+        fig2 = px.bar(ind_tax, x="okved_section", y="avg_fpr",
+                       color="avg_fpr", color_continuous_scale="Reds",
+                       labels={"okved_section": "Отрасль", "avg_fpr": "Средний FPR"})
+        fig2.update_xaxes(tickangle=45)
+        st.plotly_chart(fig2, use_container_width=True)
+
+    st.markdown("#### Средняя налоговая нагрузка по отраслям")
+    fig3 = px.bar(ind_tax, x="okved_section", y="avg_tax_to_profit",
+                   color="avg_tax_to_profit", color_continuous_scale="Blues",
+                   labels={"okved_section": "Отрасль", "avg_tax_to_profit": "Средний tax/profit"})
+    fig3.update_xaxes(tickangle=45)
+    st.plotly_chart(fig3, use_container_width=True)
