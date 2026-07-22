@@ -44,10 +44,14 @@ def render_anomalies(df_an):
 
     st.markdown("#### Таблица аномалий")
     show_cols = ["company_name", "year", "hypothesis_code", "metric", "value", "zscore",
-                  "criticality", "interpretation", "interpretation_reason"]
+                  "criticality_score", "criticality", "interpretation", "interpretation_reason"]
     display_df = df[show_cols].copy()
-    sort_col = "criticality_score" if "criticality_score" in df.columns else "criticality"
-    display_df = display_df.sort_values(["year", sort_col], ascending=[False, False])
+    if "criticality_score" in display_df.columns:
+        display_df = display_df.sort_values(["year", "criticality_score"], ascending=[False, False])
+    else:
+        _cmap = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+        display_df["_sort"] = display_df["criticality"].map(_cmap).fillna(0)
+        display_df = display_df.sort_values(["year", "_sort"], ascending=[False, False]).drop(columns=["_sort"])
     st.dataframe(
         display_df, use_container_width=True, hide_index=True,
         column_config={
