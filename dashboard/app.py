@@ -1,10 +1,10 @@
 import streamlit as st
 from db import engine
 from sqlalchemy import text
-import pages.Obzor as page_obzor
-import pages.Kompania as page_kompania
-import pages.Gipotezy as page_gipotezy
-import pages.Gruppy as page_gruppy
+import page_obzor
+import page_kompania
+import page_gipotezy
+import page_gruppy
 
 st.set_page_config(
     page_title="ФНС Аналитика",
@@ -29,6 +29,6 @@ pages = {
 
 sel = st.sidebar.radio("Дашборд", list(pages.keys()))
 st.sidebar.markdown("---")
-st.sidebar.caption("ФНС Аналитика — система риск-мониторинга")
+st.sidebar.caption("ФНС Аналитика — риск-мониторинг")
 
-pages[sel].render()
+pages[sel]
