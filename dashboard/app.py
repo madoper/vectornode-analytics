@@ -7,14 +7,6 @@ st.markdown("""
 <style>
     .stApp { background-color: #0E1117; }
     footer { visibility: hidden; }
-    section[data-testid="stSidebar"] {
-        z-index: 100 !important;
-        min-width: 300px !important;
-        width: auto !important;
-    }
-    [data-testid="stSidebarCollapseButton"] {
-        display: none !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -27,7 +19,6 @@ df_hs = data["hypothesis_summary"]
 
 # ── Sidebar filters (direct st.sidebar calls) ──
 st.sidebar.header("Фильтры")
-st.sidebar.write("▶ Тест — эта строка видна?")
 
 years = sorted(int(x) for x in df_cy["year"].unique())
 sel_year = st.sidebar.selectbox("Год", years, index=len(years) - 1, key="g_year")
