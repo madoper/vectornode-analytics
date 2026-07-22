@@ -6,18 +6,7 @@ from utils.charts import kpi_card
 def render_overview(df_cy, df_hs, data):
     latest = df_cy[df_cy["is_latest_year"] == 1]
     
-    # Sidebar filters
-    st.sidebar.header("Фильтры")
-    years = sorted(df_cy["year"].unique())
-    sel_year = st.sidebar.selectbox("Год", years, index=len(years)-1)
-    regions = st.sidebar.multiselect("Регион", sorted(df_cy["region"].dropna().unique()))
-    sectors = st.sidebar.multiselect("Отрасль", sorted(df_cy["okved_section"].dropna().unique()))
-    
-    df = df_cy[df_cy["year"] == sel_year]
-    if regions:
-        df = df[df["region"].isin(regions)]
-    if sectors:
-        df = df[df["okved_section"].isin(sectors)]
+    df = df_cy
     
     total = len(df)
     risk_count = int(df["risk_flag"].sum())

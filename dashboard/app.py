@@ -79,6 +79,9 @@ st.markdown("""
     div[data-testid="stAppViewContainer"] > .main > .block-container {
         padding-top: 60px;
     }
+
+    button[kind="header"] { display: none !important; }
+    section[data-testid="stSidebar"] { min-width: 280px; max-width: 320px; }
 </style>
 <div id="custom-header">
     <img src="/app/static/logo.svg" alt="Logo">
@@ -97,6 +100,44 @@ df_hf = data["hypothesis_flags"]
 df_gs = data["group_signal"]
 df_hs = data["hypothesis_summary"]
 
+# === SIDEBAR: Global Filters ===
+with st.sidebar:
+    st.header("Фильтры")
+
+    years = sorted(df_cy["year"].unique())
+    sel_year = st.selectbox("Год", years, index=len(years)-1, key="global_year")
+
+    regions = sorted(df_cy["region"].dropna().unique())
+    sel_regions = st.multiselect("Регион", regions, key="global_regions")
+
+    sectors = sorted(df_cy["okved_section"].dropna().unique())
+    sel_sectors = st.multiselect("Отрасль", sectors, key="global_sectors")
+
+    st.divider()
+
+    st.caption("Легенда")
+    st.markdown('<span style="color:#FF4B4B">●</span> **Risk** — риск-аномалия', unsafe_allow_html=True)
+    st.markdown('<span style="color:#4DA6FF">●</span> **Economic Signal** — экон. сигнал', unsafe_allow_html=True)
+    st.markdown("Критичность:")
+    for lbl, clr in [("critical", "#FF4B4B"), ("high", "#FF8C00"), ("medium", "#FFD700"), ("low", "#32CD32")]:
+        st.markdown(f'<span style="color:{clr}; margin-left:12px">●</span> {lbl}', unsafe_allow_html=True)
+
+    st.divider()
+
+# Apply global filters
+df_cy_filt = df_cy[df_cy["year"] == sel_year]
+if sel_regions:
+    df_cy_filt = df_cy_filt[df_cy_filt["region"].isin(sel_regions)]
+if sel_sectors:
+    df_cy_filt = df_cy_filt[df_cy_filt["okved_section"].isin(sel_sectors)]
+
+_filtered_names = df_cy_filt["company_name"].dropna().unique().tolist()
+df_an_filt = df_an[df_an["company_name"].isin(_filtered_names)]
+df_hf_filt = df_hf[df_hf["company_name"].isin(_filtered_names)]
+
+with st.sidebar:
+    st.caption(f"Компаний: **{len(df_cy_filt)}** из {len(df_cy[df_cy['year']==sel_year])}")
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Обзор",
     "Аномалии",
@@ -105,27 +146,22 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Гипотезы",
 ])
 
-# ===== TAB 1: OVERVIEW =====
 with tab1:
     from pages.tab_overview import render_overview
-    render_overview(df_cy, df_hs, data)
+    render_overview(df_cy_filt, df_hs, data)
 
-# ===== TAB 2: ANOMALIES =====
 with tab2:
     from pages.tab_anomalies import render_anomalies
-    render_anomalies(df_an)
+    render_anomalies(df_an_filt)
 
-# ===== TAB 3: COMPANY PROFILE =====
 with tab3:
     from pages.tab_company import render_company
     render_company(df_cy, df_an, df_hf)
 
-# ===== TAB 4: GROUP SIGNALS =====
 with tab4:
     from pages.tab_groups import render_groups
     render_groups(df_gs)
 
-# ===== TAB 5: HYPOTHESES =====
 with tab5:
     from pages.tab_hypotheses import render_hypotheses
-    render_hypotheses(df_hs, df_an)
+    render_hypotheses(df_hs, df_an_filt)
