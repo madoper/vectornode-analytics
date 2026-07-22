@@ -3,8 +3,19 @@ from utils.chart_builder import kpi_card, donut_criticality, stacked_bar_hypothe
 
 
 def render_overview(df_cy, df_hs):
-    latest = df_cy[df_cy["is_latest_year"] == 1]
-    df = latest if not latest.empty else df_cy
+    st.sidebar.header("Фильтры")
+    years = sorted(df_cy["year"].unique())
+    sel_year = st.sidebar.selectbox("Год", years, index=len(years) - 1, key="overview_year")
+    regions = st.sidebar.multiselect("Регион", sorted(df_cy["region"].dropna().unique()), key="overview_regions")
+    sectors = st.sidebar.multiselect("Отрасль", sorted(df_cy["okved_section"].dropna().unique()), key="overview_sectors")
+
+    df = df_cy[df_cy["year"] == sel_year]
+    if sel_year != df_cy["year"].max():
+        df = df[df["is_latest_year"] == 1]
+    if regions:
+        df = df[df["region"].isin(regions)]
+    if sectors:
+        df = df[df["okved_section"].isin(sectors)]
 
     total = len(df)
     risk_count = int(df["risk_flag"].sum())

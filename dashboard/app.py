@@ -18,6 +18,9 @@ df_hs = data["hypothesis_summary"]
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Обзор", "Аномалии", "Профиль компании", "Групповые сигналы", "Гипотезы"])
 
+# Sidebar marker — ensures sidebar renders even when active tab has no sidebar code
+st.sidebar.markdown("## Анализ рисков")
+
 with tab1:
     from pages.tab_overview import render_overview
     render_overview(df_cy, df_hs)
