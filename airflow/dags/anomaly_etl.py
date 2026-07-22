@@ -32,11 +32,11 @@ DEFAULT_THRESHOLDS = {
     "z_high": 2.0,
     "payout_critical": 1.5,
     "payout_high": 1.0,
-    "rev_growth_high": 0.30,
-    "emp_growth_high": -0.10,
+    "rev_growth_high": 0.15,
+    "emp_growth_high": -0.05,
     "fin_pressure_critical": 2.0,
     "fin_pressure_high": 1.2,
-    "multi_flags_critical": 3,
+    "multi_flags_critical": 2,
 }
 
 
@@ -156,8 +156,16 @@ def build_features(**context):
     df["rev_per_emp"] = df["revenue"] / df["headcount"].replace(0, np.nan)
     df["profit_per_emp"] = df["net_profit"] / df["headcount"].replace(0, np.nan)
     df["payroll_per_emp"] = df["payroll_fund"] / df["headcount"].replace(0, np.nan)
-    df["tax_to_profit"] = df["taxes_paid"] / df["net_profit"].replace(0, np.nan)
-    df["payout_ratio"] = df["dividends_paid"] / df["net_profit"].replace(0, np.nan)
+    df["tax_to_profit"] = np.where(
+        df["net_profit"] > 0,
+        df["taxes_paid"] / df["net_profit"],
+        np.nan,
+    )
+    df["payout_ratio"] = np.where(
+        df["net_profit"] > 0,
+        df["dividends_paid"] / df["net_profit"],
+        np.nan,
+    )
     df["financial_pressure_ratio"] = (
         df["opex"] + df["taxes_paid"] + df["dividends_paid"]
     ) / df["gross_profit"].replace(0, np.nan)
@@ -170,6 +178,16 @@ def build_features(**context):
     df["emp_growth"] = grouped["headcount"].pct_change()
     df["payroll_growth"] = grouped["payroll_fund"].pct_change()
 
+    # Classify profit growth direction
+    df["profit_growth_type"] = "normal"
+    prev_profit = df.groupby("company_id")["net_profit"].shift(1)
+    mask_turnaround = (prev_profit <= 0) & (df["net_profit"] > 0)
+    mask_deterioration = (prev_profit > 0) & (df["net_profit"] <= 0)
+    mask_loss_change = (prev_profit <= 0) & (df["net_profit"] <= 0)
+    df.loc[mask_turnaround, "profit_growth_type"] = "turnaround"
+    df.loc[mask_deterioration, "profit_growth_type"] = "deterioration"
+    df.loc[mask_loss_change, "profit_growth_type"] = "loss_change"
+
     features = df[[
         "company_id", "year", "net_margin", "gross_margin", "operating_margin",
         "rev_per_emp", "profit_per_emp", "payroll_per_emp",
@@ -177,7 +195,8 @@ def build_features(**context):
     ]]
 
     growth = df[[
-        "company_id", "year", "rev_growth", "profit_growth", "emp_growth", "payroll_growth",
+        "company_id", "year", "rev_growth", "profit_growth", "emp_growth",
+        "payroll_growth", "profit_growth_type",
     ]]
 
     df_to_sql_copy(features, "company_features", engine, schema="analytics")
@@ -288,7 +307,7 @@ def detect_anomalies(**context):
         if pd.notna(row["dividends_paid"]) and row["dividends_paid"] > 0:
             if pd.notna(row["net_profit"]) and row["net_profit"] <= 0:
                 flags += 1; risk_flags += 1
-                add_a(row, "H1", "payout_ratio", row.get("payout_ratio"), None,
+                add_a(row, "H1", "dividends_paid", row["dividends_paid"], None,
                       "risk", "Дивиденды выплачены при убытке. Агрессивная дивидендная политика или вывод средств.", "critical", 4)
             elif pd.notna(row["payout_ratio"]) and row["payout_ratio"] >= th["payout_critical"]:
                 flags += 1; risk_flags += 1
@@ -311,17 +330,25 @@ def detect_anomalies(**context):
                 add_a(row, "H2", "rev_growth", row["rev_growth"], row["rev_per_emp_zscore"],
                       "risk", "Рост выручки при сокращении штата без роста производительности.", "high", 3)
 
-        # H3 - margin outliers
+        # H3 - margin outliers (sign-aware)
         if pd.notna(row["net_margin_zscore"]):
             z = row["net_margin_zscore"]
-            if abs(z) >= th["z_critical"]:
+            if z >= th["z_critical"]:
+                flags += 1
+                add_a(row, "H3", "net_margin", row["net_margin"], z,
+                      "economic_signal", "Маржа существенно выше отрасли. Высокая эффективность или ценовое преимущество.", "medium", 2)
+            elif z <= -th["z_critical"]:
                 flags += 1; risk_flags += 1
                 add_a(row, "H3", "net_margin", row["net_margin"], z,
-                      "risk", "Маржа существенно отклоняется от отрасли. Возможна аномалия учёта или ошибка данных.", "critical", 4)
-            elif abs(z) >= th["z_high"]:
+                      "risk", "Маржа существенно ниже отрасли. Аномалия учёта, демпинг или скрытые расходы.", "critical", 4)
+            elif z >= th["z_high"]:
+                flags += 1
+                add_a(row, "H3", "net_margin", row["net_margin"], z,
+                      "economic_signal", "Маржа выше отрасли. Повышенная эффективность.", "low", 1)
+            elif z <= -th["z_high"]:
                 flags += 1; risk_flags += 1
                 add_a(row, "H3", "net_margin", row["net_margin"], z,
-                      "risk", "Маржа заметно отклоняется от отрасли.", "high", 3)
+                      "risk", "Маржа ниже отрасли. Возможны операционные проблемы.", "high", 3)
 
         # H4 - financial pressure
         if pd.notna(row["financial_pressure_ratio"]):
@@ -335,11 +362,20 @@ def detect_anomalies(**context):
                 add_a(row, "H4", "financial_pressure_ratio", fpr, row.get("financial_pressure_zscore"),
                       "risk", "Повышенное финансовое давление по прокси-индикатору.", "high", 3)
 
-        # H5 - rev_per_emp outlier
-        if pd.notna(row["rev_per_emp_zscore"]) and abs(row["rev_per_emp_zscore"]) >= th["z_critical"]:
-            flags += 1; risk_flags += 1
-            add_a(row, "H5", "rev_per_emp", row["rev_per_emp"], row["rev_per_emp_zscore"],
-                  "risk", "Аномальная выручка на сотрудника. Возможны: автоматизация, крупный контракт, транзитные операции.", "critical", 4)
+        # H5 - rev_per_emp outlier (sign-aware)
+        if pd.notna(row["rev_per_emp_zscore"]):
+            z = row["rev_per_emp_zscore"]
+            if z >= th["z_critical"]:
+                flags += 1
+                crit = "critical" if pd.notna(row["headcount"]) and row["headcount"] <= 5 else "high"
+                add_a(row, "H5", "rev_per_emp", row["rev_per_emp"], z,
+                      "economic_signal",
+                      "Выручка на сотрудника выше отрасли. Автоматизация, крупный контракт или транзитные операции.", "high", 3)
+            elif z <= -th["z_critical"]:
+                flags += 1; risk_flags += 1
+                add_a(row, "H5", "rev_per_emp", row["rev_per_emp"], z,
+                      "risk",
+                      "Выручка на сотрудника ниже отрасли. Возможна низкая производительность или избыточный штат.", "critical", 4)
 
         # H6 - multi-flag
         if flags >= th["multi_flags_critical"]:
@@ -414,7 +450,7 @@ def build_group_signals(**context):
 
     df_to_sql_copy(groups, "group_signal", engine, schema="analytics")
 
-    # Create dashboard table (materialized from joins)
+    # Create dashboard table (DISTINCT ON company+year to avoid LEFT JOIN duplicates)
     table_sql = """
     DROP TABLE IF EXISTS analytics.v_company_dashboard CASCADE;
     CREATE TABLE analytics.v_company_dashboard AS
@@ -460,8 +496,15 @@ def build_group_signals(**context):
     LEFT JOIN analytics.company_zscore z_emp_growth
       ON z_emp_growth.company_id = cy.company_id AND z_emp_growth.year = cy.year
      AND z_emp_growth.metric = 'emp_growth'
-    LEFT JOIN analytics.anomaly a
-      ON a.company_id = cy.company_id AND a.year = cy.year
+    LEFT JOIN LATERAL (
+        SELECT a2.hypothesis_code, a2.metric, a2.value, a2.zscore,
+               a2.interpretation, a2.interpretation_reason,
+               a2.criticality, a2.criticality_score
+        FROM analytics.anomaly a2
+        WHERE a2.company_id = c.company_id AND a2.year = cy.year
+        ORDER BY a2.criticality_score DESC, a2.hypothesis_code
+        LIMIT 1
+    ) a ON true
     """
     fairy = engine.raw_connection()
     try:
