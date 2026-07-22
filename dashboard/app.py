@@ -29,11 +29,22 @@ st.markdown("""
 
     header[data-testid="stHeader"] { visibility: hidden; height: 0; }
 
+    footer { visibility: hidden; }
+
     section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p:last-child {
         display: none;
     }
 
-    footer { visibility: hidden; }
+    section[data-testid="stSidebar"] {
+        min-width: 280px !important;
+    }
+    [data-testid="stSidebarCollapseButton"] button,
+    [data-testid="stSidebarCollapseButton"] {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] .st-emotion-cache-1gwvycy {
+        display: none !important;
+    }
 
     #custom-header {
         position: fixed;
@@ -63,6 +74,11 @@ st.markdown("""
         white-space: nowrap;
     }
 
+    .stMainBlockContainer {
+        padding-top: 60px !important;
+        overflow: visible !important;
+    }
+
     div[data-testid="stTabs"] {
         position: sticky;
         top: 56px;
@@ -71,17 +87,11 @@ st.markdown("""
         padding-top: 4px;
         padding-bottom: 4px;
         border-bottom: 1px solid #333;
+        margin-bottom: 12px;
     }
     div[data-testid="stTabs"] button {
         font-size: 14px;
     }
-
-    div[data-testid="stAppViewContainer"] > .main > .block-container {
-        padding-top: 60px;
-    }
-
-    button[kind="header"] { display: none !important; }
-    section[data-testid="stSidebar"] { min-width: 280px; max-width: 320px; }
 </style>
 <div id="custom-header">
     <img src="/app/static/logo.svg" alt="Logo">
