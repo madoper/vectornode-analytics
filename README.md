@@ -5,7 +5,7 @@
 ## Архитектура
 
 - **Airflow** — оркестрация ETL (systemd, порт 8081)
-- **Superset** — BI-дашборды (podft-superset, порт 8088)
+- **Streamlit** — кастомные BI-дашборды 
 - **PostgreSQL** — метаданные + аналитика (podft-postgres)
 
 ## Домены
@@ -13,8 +13,8 @@
 | Субдомен | Сервис |
 |---|---|
 | `admin.vectornode.ru` | Airflow UI |
-| `bi.vectornode.ru` | Superset BI |
-| `vectornode.ru` | PodFT + Superset (legacy) |
+| `analytics.vectornode.ru` | BI |
+| `vectornode.ru` | PodFT (legacy) |
 
 ## DAG: vectornode_anomaly_etl
 
