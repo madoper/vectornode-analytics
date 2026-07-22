@@ -3,6 +3,21 @@ from utils.data_loader import load_all
 
 st.set_page_config(page_title="АНАЛИЗ РИСКОВ", layout="wide", initial_sidebar_state="expanded")
 
+st.markdown("""
+<style>
+    .stApp { background-color: #0E1117; }
+    footer { visibility: hidden; }
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="stSidebarCollapseButton"] button {
+        background-color: #333 !important;
+        color: #FFF !important;
+        border: 1px solid #555 !important;
+        opacity: 1 !important;
+        border-radius: 4px !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 data = load_all()
 df_cy = data["company_year"]
 df_an = data["anomaly"]
