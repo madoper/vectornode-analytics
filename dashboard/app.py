@@ -10,6 +10,11 @@ from components import *
 
 st.set_page_config(page_title="ФНС Аналитика", page_icon="static/logo.svg", layout="wide", initial_sidebar_state="expanded")
 
+if "cleared" not in st.session_state:
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    st.session_state["cleared"] = True
+
 st.markdown("""<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">""", unsafe_allow_html=True)
 
 try:
