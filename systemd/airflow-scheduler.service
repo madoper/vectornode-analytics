@@ -1,0 +1,23 @@
+[Unit]
+Description=Apache Airflow Scheduler
+After=network.target podft-postgres.service
+Wants=podft-postgres.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment="AIRFLOW_HOME=/opt/analytics"
+Environment="PATH=/opt/analytics/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow_user:airflow_pass@localhost:5432/airflow_db"
+Environment="AIRFLOW__CORE__EXECUTOR=SequentialExecutor"
+Environment="AIRFLOW__CORE__LOAD_EXAMPLES=False"
+Environment="AIRFLOW__CORE__DAGS_FOLDER=/opt/analytics/dags"
+ExecStart=/opt/analytics/venv/bin/airflow scheduler
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

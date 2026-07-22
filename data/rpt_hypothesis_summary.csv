@@ -1,0 +1,14 @@
+hypothesis_code,interpretation,criticality,findings_count,companies_count,company_year_count
+H1,risk,critical,30,10,30
+H2,risk,high,30,28,30
+H2,economic_signal,medium,5,5,5
+H3,risk,critical,77,31,77
+H3,economic_signal,low,30,30,30
+H3,risk,high,29,29,29
+H3,economic_signal,medium,5,5,5
+H4,risk,high,87,63,87
+H4,risk,critical,13,11,13
+H5,risk,critical,89,35,89
+H5,economic_signal,medium,51,26,51
+H6,risk,critical,60,33,60
+H6,economic_signal,medium,8,8,8
