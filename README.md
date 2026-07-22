@@ -21,7 +21,7 @@
 1. `load_raw` — загрузка и валидация CSV
 2. `build_features` — расчёт 12 производных признаков
 3. `build_zscore` — robust z-score по отраслям
-4. `detect_anomalies` — 7 гипотез + интерпретация
+4. `detect_anomalies` — 6 гипотез + интерпретация
 5. `build_group_signals` — групповые сигналы
 
 ## Деплой
