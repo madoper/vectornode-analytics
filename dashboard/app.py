@@ -10,6 +10,8 @@ from components import *
 
 st.set_page_config(page_title="ФНС Аналитика", page_icon="static/logo.svg", layout="wide", initial_sidebar_state="expanded")
 
+st.markdown("""<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">""", unsafe_allow_html=True)
+
 try:
     with engine.connect() as c:
         c.execute(text("SELECT 1"))
@@ -17,7 +19,7 @@ except Exception as e:
     st.error(f"Нет подключения к БД: {e}")
     st.stop()
 
-pages = {"📊 Обзор": 0, "🔍 Компания": 1, "🧪 Гипотезы": 2, "👥 Группы": 3}
+pages = {"▤ Обзор": 0, "◎ Компания": 1, "⚗ Гипотезы": 2, "⊞ Группы": 3}
 sel = st.sidebar.radio("Дашборд", list(pages.keys()))
 st.sidebar.markdown("---")
 st.sidebar.caption("ФНС Аналитика — риск-мониторинг")
@@ -26,7 +28,7 @@ page = pages[sel]
 
 # ======================== PAGE 0: OVERVIEW ========================
 if page == 0:
-    st.markdown("## 📊 Обзор")
+    st.markdown("## <i class='material-icons'>bar_chart</i> Обзор")
     with engine.connect() as conn:
         kpi = conn.execute(text(Q_KPI)).fetchone()
 
@@ -83,7 +85,7 @@ if page == 0:
 
 # ======================== PAGE 1: COMPANY ========================
 elif page == 1:
-    st.markdown("## 🔍 Профиль компании")
+    st.markdown("## <i class='material-icons'>business</i> Профиль компании")
     with engine.connect() as conn:
         companies = conn.execute(text(Q_ALL_COMPANIES)).fetchall()
     opts = {f"{c.company_id} — {c.company_name}": c.company_id for c in companies}
@@ -153,7 +155,7 @@ elif page == 1:
 
 # ======================== PAGE 2: HYPOTHESES ========================
 elif page == 2:
-    st.markdown("## 🧪 Анализ гипотез")
+    st.markdown("## <i class='material-icons'>science</i> Анализ гипотез")
     with engine.connect() as conn:
         hs = pd.read_sql(text(Q_HYPOTHESIS_SUMMARY), conn)
     st.dataframe(hs.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality'],'')}" if r['criticality'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
@@ -191,7 +193,7 @@ elif page == 2:
 
 # ======================== PAGE 3: GROUPS ========================
 elif page == 3:
-    st.markdown("## 👥 Групповой анализ")
+    st.markdown("## <i class='material-icons'>groups</i> Групповой анализ")
     gtype = st.radio("Тип группы", ["founder", "address"], horizontal=True)
     with engine.connect() as conn:
         grp = pd.read_sql(text(Q_GROUPS), conn, params={"gtype": gtype})
