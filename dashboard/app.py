@@ -167,14 +167,19 @@ elif page == 2:
 
     with engine.connect() as conn:
         sc = pd.read_sql(text(Q_ANOMALY_SCATTER), conn, params={"h": h, "y": None if y == "Все" else int(y)})
-    sc_z = sc.dropna(subset=["zscore"])
+    sc_z = sc.dropna(subset=["zscore"]).copy()
     if not sc_z.empty:
-        fig = px.scatter(sc_z, x="value", y="zscore", color="criticality", size=sc_z["net_profit"].abs().clip(upper=sc_z["net_profit"].abs().quantile(0.95)), hover_data=["company_name", "year", "interpretation"], color_discrete_map=CRIT_COLORS)
+        sc_z["size_val"] = sc_z["net_profit"].fillna(0).abs().clip(upper=sc_z["net_profit"].fillna(0).abs().quantile(0.95))
+        fig = px.scatter(sc_z, x="value", y="zscore", color="criticality", size="size_val",
+                         hover_data=["company_name", "year", "interpretation"],
+                         color_discrete_map=CRIT_COLORS)
         fig.add_hline(y=2, line_dash="dash", line_color="#feca57")
         fig.add_hline(y=-2, line_dash="dash", line_color="#feca57")
         fig.add_hline(y=3, line_dash="dash", line_color="#ff4b4b")
         fig.add_hline(y=-3, line_dash="dash", line_color="#ff4b4b")
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Нет данных с z-score для выбранной гипотезы")
     if not sc.empty:
         disp = sc.dropna(subset=["zscore"])
         if not disp.empty:
