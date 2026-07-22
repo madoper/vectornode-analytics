@@ -50,8 +50,8 @@ with st.sidebar:
     st.write(f"Регионов: {len(regions)}")
     sectors = df_cy["okved_section"].dropna().unique().tolist()
     st.write(f"Отраслей: {len(sectors)}")
-    sel_regions = st.multiselect("Регион", regions, default=regions[:3], key="g_regions")
-    sel_sectors = st.multiselect("Отрасль", sectors, default=sectors[:3], key="g_sectors")
+    sel_regions = st.multiselect("Регион", regions, key="g_regions")
+    sel_sectors = st.multiselect("Отрасль", sectors, key="g_sectors")
 
     st.markdown(f"Компаний: **{len(df_cy)}**")
     st.divider()
