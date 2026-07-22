@@ -33,13 +33,6 @@ df_hs = data["hypothesis_summary"]
 with st.sidebar:
     st.header("Фильтры")
 
-    # Convert all data to Python lists explicitly
-    regions = sorted(df_cy["region"].dropna().unique().tolist())
-    sel_regions = st.multiselect("Регион", regions, key="g_regions")
-
-    sectors = sorted(df_cy["okved_section"].dropna().unique().tolist())
-    sel_sectors = st.multiselect("Отрасль", sectors, key="g_sectors")
-
     years = sorted(int(x) for x in df_cy["year"].unique())
     sel_year = st.selectbox("Год", years, index=len(years) - 1, key="g_year")
 
@@ -51,6 +44,13 @@ with st.sidebar:
 
     crits_all = sorted(df_an["criticality"].unique().tolist())
     sel_crits = st.multiselect("Критичность", crits_all, default=crits_all, key="g_crits")
+
+    # Region and Sector — moved below working filters for testing
+    regions = sorted(df_cy["region"].dropna().unique().tolist())
+    sel_regions = st.multiselect("Регион", regions, key="g_regions")
+
+    sectors = sorted(df_cy["okved_section"].dropna().unique().tolist())
+    sel_sectors = st.multiselect("Отрасль", sectors, key="g_sectors")
 
     st.markdown(f"Компаний: **{len(df_cy)}**")
     st.divider()
