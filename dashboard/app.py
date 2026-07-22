@@ -1,10 +1,10 @@
 import streamlit as st
 from db import engine
 from sqlalchemy import text
-import page_obzor
-import page_kompania
-import page_gipotezy
-import page_gruppy
+import _page_obzor
+import _page_kompania
+import _page_gipotezy
+import _page_gruppy
 
 st.set_page_config(
     page_title="ФНС Аналитика",
@@ -21,10 +21,10 @@ except Exception as e:
     st.stop()
 
 pages = {
-    "Обзор": page_obzor,
-    "Компания": page_kompania,
-    "Гипотезы": page_gipotezy,
-    "Группы": page_gruppy,
+    "Обзор": _page_obzor,
+    "Компания": _page_kompania,
+    "Гипотезы": _page_gipotezy,
+    "Группы": _page_gruppy,
 }
 
 sel = st.sidebar.radio("Дашборд", list(pages.keys()))
