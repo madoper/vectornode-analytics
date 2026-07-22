@@ -1,19 +1,7 @@
 import streamlit as st
 from utils.data_loader import load_all
 
-st.set_page_config(
-    page_title="АНАЛИЗ РИСКОВ",
-    page_icon="logo.svg",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-st.markdown("""
-<style>
-    .stApp { background-color: #0E1117; }
-    footer { visibility: hidden; }
-</style>
-""", unsafe_allow_html=True)
+st.set_page_config(page_title="АНАЛИЗ РИСКОВ", layout="wide", initial_sidebar_state="expanded")
 
 data = load_all()
 df_cy = data["company_year"]
@@ -22,25 +10,21 @@ df_hf = data["hypothesis_flags"]
 df_gs = data["group_signal"]
 df_hs = data["hypothesis_summary"]
 
-with st.sidebar.expander("Фильтры", expanded=True):
-    years = sorted(df_cy["year"].unique())
-    sel_year = st.selectbox("Год", years, index=len(years) - 1, key="g_year")
-    sel_regions = st.multiselect("Регион", sorted(df_cy["region"].dropna().unique()), key="g_regions")
-    sel_sectors = st.multiselect("Отрасль", sorted(df_cy["okved_section"].dropna().unique()), key="g_sectors")
+st.sidebar.header("Фильтры")
 
-    hyps_all = sorted(df_an["hypothesis_code"].unique())
-    sel_hyps = st.multiselect("Гипотеза", hyps_all, default=hyps_all, key="g_hyps")
-    interps_all = sorted(df_an["interpretation"].unique())
-    sel_interps = st.multiselect("Интерпретация", interps_all, default=interps_all, key="g_interps")
-    crits_all = sorted(df_an["criticality"].unique())
-    sel_crits = st.multiselect("Критичность", crits_all, default=crits_all, key="g_crits")
+years = sorted(df_cy["year"].unique())
+sel_year = st.sidebar.selectbox("Год", years, index=len(years) - 1, key="g_year")
+sel_regions = st.sidebar.multiselect("Регион", sorted(df_cy["region"].dropna().unique()), key="g_regions")
+sel_sectors = st.sidebar.multiselect("Отрасль", sorted(df_cy["okved_section"].dropna().unique()), key="g_sectors")
 
-st.sidebar.markdown(f"Компаний: **{len(df_cy)}**")
-st.sidebar.divider()
-st.sidebar.caption("Легенда")
-st.sidebar.markdown("🔴 Risk — риск-аномалия")
-st.sidebar.markdown("🔵 Economic Signal — экон. сигнал")
-st.sidebar.caption("none / low / medium / high / critical")
+hyps_all = sorted(df_an["hypothesis_code"].unique())
+sel_hyps = st.sidebar.multiselect("Гипотеза", hyps_all, default=hyps_all, key="g_hyps")
+
+interps_all = sorted(df_an["interpretation"].unique())
+sel_interps = st.sidebar.multiselect("Интерпретация", interps_all, default=interps_all, key="g_interps")
+
+crits_all = sorted(df_an["criticality"].unique())
+sel_crits = st.sidebar.multiselect("Критичность", crits_all, default=crits_all, key="g_crits")
 
 mask_cy = (df_cy["year"] == sel_year)
 if sel_regions:
@@ -48,12 +32,14 @@ if sel_regions:
 if sel_sectors:
     mask_cy &= df_cy["okved_section"].isin(sel_sectors)
 df_cy_f = df_cy[mask_cy]
+
 f_names = df_cy_f["company_name"].dropna().unique().tolist()
 
 df_an_f = df_an[df_an["company_name"].isin(f_names)]
 df_an_f = df_an_f[df_an_f["hypothesis_code"].isin(sel_hyps)]
 df_an_f = df_an_f[df_an_f["interpretation"].isin(sel_interps)]
 df_an_f = df_an_f[df_an_f["criticality"].isin(sel_crits)]
+
 df_hf_f = df_hf[df_hf["company_name"].isin(f_names)]
 df_hs_f = df_hs[df_hs["hypothesis_code"].isin(sel_hyps)]
 df_hs_f = df_hs_f[df_hs_f["interpretation"].isin(sel_interps)]
