@@ -111,8 +111,8 @@ elif page == 1:
     with c4: st.markdown(kpi_card("Штат", str(int(last["headcount"])) if last["headcount"] else "—"), unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(kpi_card("tax_to_profit", fmt_pct(last["tax_to_profit"]), "#4DA6FF"), unsafe_allow_html=True)
-    with c2: st.markdown(kpi_card("FPR", f"{last['fpr']:.2f}" if last["fpr"] else "—"), "#ff9f43"), unsafe_allow_html=True)
-    with c3: st.markdown(kpi_card("Аномалий", str(int(last["anomaly_count"]))), "#FFF"), unsafe_allow_html=True)
+    with c2: st.markdown(kpi_card("FPR", f"{last['fpr']:.2f}" if last["fpr"] else "—", "#ff9f43"), unsafe_allow_html=True)
+    with c3: st.markdown(kpi_card("Аномалий", str(int(last["anomaly_count"]))), unsafe_allow_html=True)
     with c4:
         badge = verdict_badge(last)
         clr = "#ff4b4b" if "КРИТИЧЕСКИЙ" in badge else "#ff9f43" if "ВЫСОКИЙ" in badge else "#2ed573"
