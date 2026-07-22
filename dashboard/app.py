@@ -45,12 +45,13 @@ with st.sidebar:
     crits_all = sorted(df_an["criticality"].unique().tolist())
     sel_crits = st.multiselect("Критичность", crits_all, default=crits_all, key="g_crits")
 
-    # Region and Sector — with explicit default to force rendering
-    regions = sorted(df_cy["region"].dropna().unique().tolist())
-    sel_regions = st.multiselect("Регион", regions, default=regions, key="g_regions")
-
-    sectors = sorted(df_cy["okved_section"].dropna().unique().tolist())
-    sel_sectors = st.multiselect("Отрасль", sectors, default=sectors, key="g_sectors")
+    # Region and Sector — diagnostic: simple write first
+    regions = df_cy["region"].dropna().unique().tolist()
+    st.write(f"Регионов: {len(regions)}")
+    sectors = df_cy["okved_section"].dropna().unique().tolist()
+    st.write(f"Отраслей: {len(sectors)}")
+    sel_regions = st.multiselect("Регион", regions, default=regions[:3], key="g_regions")
+    sel_sectors = st.multiselect("Отрасль", sectors, default=sectors[:3], key="g_sectors")
 
     st.markdown(f"Компаний: **{len(df_cy)}**")
     st.divider()
