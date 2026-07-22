@@ -24,7 +24,7 @@ except Exception as e:
     st.error(f"Нет подключения к БД: {e}")
     st.stop()
 
-pages = {"▤ Обзор": 0, "◎ Компания": 1, "⚗ Гипотезы": 2, "⊞ Группы": 3, "⬡ Отрасли": 4}
+pages = {"▤ Обзор": 0, "◎ Компания": 1, "⚗ Гипотезы": 2, "⊞ Группы": 3, "⬡ Отрасли": 4, "📋 Методика": 5, "📊 Процесс анализа": 6}
 sel = st.sidebar.radio("Дашборд", list(pages.keys()), key="nav_radio")
 st.sidebar.markdown("---")
 st.sidebar.caption("ФНС Аналитика — риск-мониторинг")
@@ -297,3 +297,11 @@ elif page == 4:
                    labels={"okved_section": "Отрасль", "avg_tax_to_profit": "Средний tax/profit"})
     fig3.update_xaxes(tickangle=45)
     st.plotly_chart(fig3, use_container_width=True)
+
+# ======================== PAGE 5: METHODOLOGY ========================
+elif page == 5:
+    st.markdown(open("methodology.md", encoding="utf-8").read())
+
+# ======================== PAGE 6: ANALYSIS PROCESS ========================
+elif page == 6:
+    st.image("FRS1.jpeg", use_container_width=True)
