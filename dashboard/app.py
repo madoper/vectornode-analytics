@@ -1,10 +1,10 @@
 import streamlit as st
 from db import engine
 from sqlalchemy import text
-import _page_obzor
-import _page_kompania
-import _page_gipotezy
-import _page_gruppy
+from modules import obzor as page_obzor
+from modules import kompania as page_kompania
+from modules import gipotezy as page_gipotezy
+from modules import gruppy as page_gruppy
 
 st.set_page_config(
     page_title="ФНС Аналитика",
