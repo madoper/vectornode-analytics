@@ -7,17 +7,21 @@ st.markdown("""
 <style>
     .stApp { background-color: #0E1117; }
     footer { visibility: hidden; }
+
+    /* Sidebar always expanded — non-collapsible */
     section[data-testid="stSidebar"] {
         z-index: 100 !important;
+        min-width: 300px !important;
+        max-width: 400px !important;
+        width: auto !important;
     }
+
+    /* Hide the collapse button entirely */
     [data-testid="stSidebarCollapseButton"],
-    [data-testid="stSidebarCollapseButton"] button {
-        background-color: #333 !important;
-        color: #FFF !important;
-        border: 1px solid #555 !important;
-        opacity: 1 !important;
-        border-radius: 4px !important;
-        z-index: 101 !important;
+    [data-testid="stSidebarCollapseButton"] button,
+    .st-emotion-cache-1gwvycy,
+    button[kind="header"] {
+        display: none !important;
     }
 </style>
 """, unsafe_allow_html=True)
