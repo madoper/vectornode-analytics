@@ -12,15 +12,11 @@ st.markdown("""
     section[data-testid="stSidebar"] {
         z-index: 100 !important;
         min-width: 300px !important;
-        max-width: 400px !important;
         width: auto !important;
     }
 
-    /* Hide the collapse button entirely */
-    [data-testid="stSidebarCollapseButton"],
-    [data-testid="stSidebarCollapseButton"] button,
-    .st-emotion-cache-1gwvycy,
-    button[kind="header"] {
+    /* Hide the collapse button only */
+    [data-testid="stSidebarCollapseButton"] {
         display: none !important;
     }
 </style>
