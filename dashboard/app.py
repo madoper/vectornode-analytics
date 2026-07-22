@@ -1,34 +1,202 @@
 import streamlit as st
-from db import engine
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 from sqlalchemy import text
-from modules import obzor as page_obzor
-from modules import kompania as page_kompania
-from modules import gipotezy as page_gipotezy
-from modules import gruppy as page_gruppy
+from db import engine, DB_URL
+from queries import *
+from config import *
+from components import *
 
-st.set_page_config(
-    page_title="ФНС Аналитика",
-    page_icon="static/logo.svg",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+st.set_page_config(page_title="ФНС Аналитика", page_icon="static/logo.svg", layout="wide", initial_sidebar_state="expanded")
 
 try:
-    with engine.connect() as conn:
-        conn.execute(text("SELECT 1"))
+    with engine.connect() as c:
+        c.execute(text("SELECT 1"))
 except Exception as e:
     st.error(f"Нет подключения к БД: {e}")
     st.stop()
 
-pages = {
-    "Обзор": _page_obzor,
-    "Компания": _page_kompania,
-    "Гипотезы": _page_gipotezy,
-    "Группы": _page_gruppy,
-}
-
+pages = {"📊 Обзор": 0, "🔍 Компания": 1, "🧪 Гипотезы": 2, "👥 Группы": 3}
 sel = st.sidebar.radio("Дашборд", list(pages.keys()))
 st.sidebar.markdown("---")
 st.sidebar.caption("ФНС Аналитика — риск-мониторинг")
 
-pages[sel]
+page = pages[sel]
+
+# ======================== PAGE 0: OVERVIEW ========================
+if page == 0:
+    st.markdown("## 📊 Обзор")
+    with engine.connect() as conn:
+        kpi = conn.execute(text(Q_KPI)).fetchone()
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.markdown(kpi_card("Компаний в анализе", kpi[0], "#4DA6FF"), unsafe_allow_html=True)
+    with c2: st.markdown(kpi_card("Критических аномалий", kpi[1], "#ff4b4b"), unsafe_allow_html=True)
+    with c3: st.markdown(kpi_card("Risk-компаний", kpi[2], "#ff9f43"), unsafe_allow_html=True)
+    with c4: st.markdown(kpi_card("Период", kpi[3], "#2ed573"), unsafe_allow_html=True)
+
+    with st.expander("Итоговое резюме", expanded=True):
+        st.markdown(RESUME_TEXT)
+        st.markdown("#### Расшифровка ключевых маркеров")
+        mk = pd.DataFrame(KEY_COMPANIES)
+        st.dataframe(mk, column_config={"company_id": "ID", "name": "Компания", "marker": "Маркер", "basis": "Основание", "priority": "Приоритет"}, use_container_width=True, hide_index=True)
+        export_button(mk, "key_companies.csv")
+
+    with engine.connect() as conn:
+        h1 = conn.execute(text(Q_PRIORITY_H1)).fetchall()
+        h5 = conn.execute(text(Q_PRIORITY_H5_TRANSIT)).fetchall()
+        h4 = conn.execute(text(Q_PRIORITY_H4_LOSS)).fetchall()
+        h3 = conn.execute(text(Q_PRIORITY_H3_LOW_MARGIN)).fetchall()
+        good = conn.execute(text(Q_GOOD_COMPANIES)).fetchall()
+
+    def card(col, title, color, items, fields):
+        with col:
+            h = f'<div style="border:2px solid {color};border-radius:8px;padding:8px;height:380px;overflow-y:auto"><h5 style="color:{color}">{title}</h5>'
+            for it in items:
+                n = getattr(it, "company_name", "") or it[1]
+                h += f"<b>{n}</b><br>"
+                for i, f in enumerate(fields):
+                    v = getattr(it, f, None) or (it[i + 2] if len(it) > i + 2 else "")
+                    h += f"<small>{f}: {v}</small><br>"
+                h += "<hr>"
+            h += "</div>"
+            st.markdown(h, unsafe_allow_html=True)
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    card(c1, "Вывод средств H1", "#ff4b4b", h1, ["dividends_paid", "net_profit"])
+    card(c2, "Транзит H5", "#ff9f43", h5, ["revenue", "zscore"])
+    card(c3, "Убытки+давление H4", "#feca57", h4, ["fpr", "net_profit"])
+    card(c4, "Низкая маржа H3", "#a855f7", h3, ["net_margin", "zscore"])
+    card(c5, "Добросовестные", "#2ed573", good, ["top_hypothesis_code", "top_reason"])
+
+    with engine.connect() as conn:
+        hs = pd.read_sql(text(Q_HYPOTHESIS_SUMMARY), conn)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.plotly_chart(px.bar(hs, x="hypothesis_code", y="findings_count", color="criticality", color_discrete_map=CRIT_COLORS, barmode="stack"), use_container_width=True)
+    with c2:
+        st.plotly_chart(px.treemap(hs, path=["hypothesis_code"], values="findings_count", color="criticality", color_discrete_map=CRIT_COLORS), use_container_width=True)
+
+    st.markdown("**Рекомендации:** 1) Выездные проверки: C0254, C0069, C0008, C0288. 2) Сверка: C0473, C0385. 3) Пояснения: C0380, C0308. 4) Анализ групп founder_id.")
+
+# ======================== PAGE 1: COMPANY ========================
+elif page == 1:
+    st.markdown("## 🔍 Профиль компании")
+    with engine.connect() as conn:
+        companies = conn.execute(text(Q_ALL_COMPANIES)).fetchall()
+    opts = {f"{c.company_id} — {c.company_name}": c.company_id for c in companies}
+    idx = 0
+    if "selected_company" in st.session_state:
+        for i, (l, cid) in enumerate(opts.items()):
+            if cid == st.session_state["selected_company"]:
+                idx = i; break
+        del st.session_state["selected_company"]
+    sel = st.selectbox("Компания", list(opts.keys()), index=idx)
+    cid = opts[sel]
+
+    with engine.connect() as conn:
+        tl = pd.read_sql(text(Q_COMPANY_TIMELINE), conn, params={"cid": cid})
+        an = pd.read_sql(text(Q_COMPANY_ANOMALIES), conn, params={"cid": cid})
+        fl = pd.read_sql(text(Q_COMPANY_FLAGS), conn, params={"cid": cid})
+    if tl.empty:
+        st.warning("Нет данных"); st.stop()
+    last = tl.iloc[-1]
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.markdown(kpi_card("Выручка", fmt_currency(last["revenue"]), "#4DA6FF"), unsafe_allow_html=True)
+    with c2: st.markdown(kpi_card("Прибыль", fmt_currency(last["net_profit"]), "#2ed573" if last["net_profit"] and last["net_profit"] > 0 else "#ff4b4b"), unsafe_allow_html=True)
+    with c3: st.markdown(kpi_card("Маржа", fmt_pct(last["net_margin"]), "#feca57"), unsafe_allow_html=True)
+    with c4: st.markdown(kpi_card("Штат", str(int(last["headcount"])) if last["headcount"] else "—"), unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.markdown(kpi_card("tax_to_profit", fmt_pct(last["tax_to_profit"]), "#4DA6FF"), unsafe_allow_html=True)
+    with c2: st.markdown(kpi_card("FPR", f"{last['fpr']:.2f}" if last["fpr"] else "—"), "#ff9f43"), unsafe_allow_html=True)
+    with c3: st.markdown(kpi_card("Аномалий", str(int(last["anomaly_count"]))), "#FFF"), unsafe_allow_html=True)
+    with c4:
+        badge = verdict_badge(last)
+        clr = "#ff4b4b" if "КРИТИЧЕСКИЙ" in badge else "#ff9f43" if "ВЫСОКИЙ" in badge else "#2ed573"
+        st.markdown(kpi_card("Статус", badge.split("—")[0].strip(), clr), unsafe_allow_html=True)
+    st.markdown(f'<div style="padding:8px;background:#333;border-radius:8px;color:#FFF">{badge}</div>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=tl["year"], y=tl["revenue"] / 1_000_000, name="Выручка (млн)", marker_color="#4DA6FF"))
+        fig.add_trace(go.Scatter(x=tl["year"], y=tl["net_profit"] / 1_000_000, name="Прибыль (млн)", mode="lines+markers", line=dict(color="#2ed573", width=3)))
+        fig.update_layout(title="Выручка и прибыль")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=tl["year"], y=tl["net_margin"] * 100, name="Маржа %", mode="lines+markers", line=dict(color="#4DA6FF", width=3)))
+        fig.add_trace(go.Scatter(x=tl["year"], y=tl["tax_to_profit"], name="tax_to_profit", mode="lines+markers", line=dict(color="#ff9f43", width=2), yaxis="y2"))
+        fig.update_layout(title="Маржа и налоги", yaxis2=dict(overlaying="y", side="right"))
+        st.plotly_chart(fig, use_container_width=True)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=tl["year"], y=tl["headcount"], name="Штат", marker_color="#feca57"))
+    if tl["revenue"].sum() > 0:
+        fig.add_trace(go.Scatter(x=tl["year"], y=tl["revenue"] / tl["headcount"].clip(lower=1), name="Выручка/сотр", mode="lines+markers", line=dict(color="#4DA6FF", width=2), yaxis="y2"))
+        fig.update_layout(yaxis2=dict(overlaying="y", side="right"))
+    fig.update_layout(title="Штат и производительность")
+    st.plotly_chart(fig, use_container_width=True)
+
+    if not an.empty:
+        st.markdown("#### Аномалии")
+        st.dataframe(an.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality'],'')};color:#FFF" if r['criticality'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
+        export_button(an, f"{cid}_anomalies.csv")
+    if not fl.empty:
+        st.markdown("#### Флаги H1–H6")
+        hm = fl.set_index("year")[[f"h{i}_flag" for i in range(1, 7)]]
+        hm.columns = [f"H{i}" for i in range(1, 7)]
+        st.plotly_chart(px.imshow(hm.T, text_auto=True, aspect="auto", color_continuous_scale="RdYlGn"), use_container_width=True)
+
+# ======================== PAGE 2: HYPOTHESES ========================
+elif page == 2:
+    st.markdown("## 🧪 Анализ гипотез")
+    with engine.connect() as conn:
+        hs = pd.read_sql(text(Q_HYPOTHESIS_SUMMARY), conn)
+    st.dataframe(hs.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality'],'')}" if r['criticality'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
+    export_button(hs, "hypothesis_summary.csv")
+
+    hyps = sorted(hs["hypothesis_code"].unique())
+    h = st.selectbox("Гипотеза", hyps, format_func=lambda x: HYPOTHESIS_LABELS.get(x, x))
+    with engine.connect() as conn:
+        yrs = [r[0] for r in conn.execute(text(Q_HYPOTHESIS_YEARS)).fetchall()]
+    y = st.selectbox("Год", ["Все"] + [str(y) for y in yrs])
+
+    with engine.connect() as conn:
+        sc = pd.read_sql(text(Q_ANOMALY_SCATTER), conn, params={"h": h, "y": None if y == "Все" else int(y)})
+    sc_z = sc.dropna(subset=["zscore"])
+    if not sc_z.empty:
+        fig = px.scatter(sc_z, x="value", y="zscore", color="criticality", size=sc_z["net_profit"].abs().clip(upper=sc_z["net_profit"].abs().quantile(0.95)), hover_data=["company_name", "year", "interpretation"], color_discrete_map=CRIT_COLORS)
+        fig.add_hline(y=2, line_dash="dash", line_color="#feca57")
+        fig.add_hline(y=-2, line_dash="dash", line_color="#feca57")
+        fig.add_hline(y=3, line_dash="dash", line_color="#ff4b4b")
+        fig.add_hline(y=-3, line_dash="dash", line_color="#ff4b4b")
+        st.plotly_chart(fig, use_container_width=True)
+    if not sc.empty:
+        disp = sc.sort_values("zscore", key=lambda x: x.abs(), ascending=False)
+        st.dataframe(disp, use_container_width=True, hide_index=True)
+        if st.button("Перейти к компании"):
+            st.session_state["selected_company"] = disp.iloc[0]["company_id"]
+            st.rerun()
+
+# ======================== PAGE 3: GROUPS ========================
+elif page == 3:
+    st.markdown("## 👥 Групповой анализ")
+    gtype = st.radio("Тип группы", ["founder", "address"], horizontal=True)
+    with engine.connect() as conn:
+        grp = pd.read_sql(text(Q_GROUPS), conn, params={"gtype": gtype})
+    if grp.empty:
+        st.info("Нет данных"); st.stop()
+    st.dataframe(grp.style.apply(lambda r: [f"background:{CRIT_COLORS.get(r['criticality_final'],'')};color:#FFF" if r['criticality_final'] in CRIT_COLORS else "" for _ in r.index], axis=1), use_container_width=True, hide_index=True)
+    export_button(grp, f"groups_{gtype}.csv")
+    top = grp.nlargest(20, "anomaly_count")
+    fig = px.bar(top, x="anomaly_count", y="group_key", orientation="h", color="max_criticality_score", color_continuous_scale="Reds")
+    fig.update_layout(yaxis_categoryorder="total ascending")
+    st.plotly_chart(fig, use_container_width=True)
+    sel = st.selectbox("Детализация", grp["group_key"])
+    det = grp[grp["group_key"] == sel]
+    if not det.empty:
+        st.dataframe(det, use_container_width=True, hide_index=True)
