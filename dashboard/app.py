@@ -29,21 +29,31 @@ df_hf = data["hypothesis_flags"]
 df_gs = data["group_signal"]
 df_hs = data["hypothesis_summary"]
 
-st.sidebar.header("Фильтры")
+# ── Sidebar filters ──
+with st.sidebar:
+    st.header("Фильтры")
 
-years = sorted(df_cy["year"].unique())
-sel_year = st.sidebar.selectbox("Год", years, index=len(years) - 1, key="g_year")
-sel_regions = st.sidebar.multiselect("Регион", sorted(df_cy["region"].dropna().unique()), key="g_regions")
-sel_sectors = st.sidebar.multiselect("Отрасль", sorted(df_cy["okved_section"].dropna().unique()), key="g_sectors")
+    sel_regions = st.multiselect("Регион", sorted(df_cy["region"].dropna().unique()), key="g_regions")
+    sel_sectors = st.multiselect("Отрасль", sorted(df_cy["okved_section"].dropna().unique()), key="g_sectors")
 
-hyps_all = sorted(df_an["hypothesis_code"].unique())
-sel_hyps = st.sidebar.multiselect("Гипотеза", hyps_all, default=hyps_all, key="g_hyps")
+    years = sorted(df_cy["year"].unique())
+    sel_year = st.selectbox("Год", years, index=len(years) - 1, key="g_year")
 
-interps_all = sorted(df_an["interpretation"].unique())
-sel_interps = st.sidebar.multiselect("Интерпретация", interps_all, default=interps_all, key="g_interps")
+    hyps_all = sorted(df_an["hypothesis_code"].unique())
+    sel_hyps = st.multiselect("Гипотеза", hyps_all, default=hyps_all, key="g_hyps")
 
-crits_all = sorted(df_an["criticality"].unique())
-sel_crits = st.sidebar.multiselect("Критичность", crits_all, default=crits_all, key="g_crits")
+    interps_all = sorted(df_an["interpretation"].unique())
+    sel_interps = st.multiselect("Интерпретация", interps_all, default=interps_all, key="g_interps")
+
+    crits_all = sorted(df_an["criticality"].unique())
+    sel_crits = st.multiselect("Критичность", crits_all, default=crits_all, key="g_crits")
+
+    st.markdown(f"Компаний: **{len(df_cy)}**")
+    st.divider()
+    st.caption("Легенда")
+    st.markdown("🔴 Risk — риск-аномалия")
+    st.markdown("🔵 Economic Signal — экон. сигнал")
+    st.caption("none / low / medium / high / critical")
 
 mask_cy = (df_cy["year"] == sel_year)
 if sel_regions:
