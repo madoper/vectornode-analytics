@@ -3,25 +3,11 @@ from utils.chart_builder import kpi_card, donut_criticality, stacked_bar_hypothe
 
 
 def render_overview(df_cy, df_hs):
-    st.sidebar.header("Фильтры")
-    years = sorted(df_cy["year"].unique())
-    sel_year = st.sidebar.selectbox("Год", years, index=len(years) - 1, key="overview_year")
-    regions = st.sidebar.multiselect("Регион", sorted(df_cy["region"].dropna().unique()), key="overview_regions")
-    sectors = st.sidebar.multiselect("Отрасль", sorted(df_cy["okved_section"].dropna().unique()), key="overview_sectors")
-
-    df = df_cy[df_cy["year"] == sel_year]
-    if sel_year != df_cy["year"].max():
-        df = df[df["is_latest_year"] == 1]
-    if regions:
-        df = df[df["region"].isin(regions)]
-    if sectors:
-        df = df[df["okved_section"].isin(sectors)]
-
-    total = len(df)
-    risk_count = int(df["risk_flag"].sum())
-    critical_count = int((df["criticality_final"] == "critical").sum())
-    anomaly_total = int(df["anomaly_count"].sum())
-    signal_only = int(df["signal_only_flag"].sum())
+    total = len(df_cy)
+    risk_count = int(df_cy["risk_flag"].sum())
+    critical_count = int((df_cy["criticality_final"] == "critical").sum())
+    anomaly_total = int(df_cy["anomaly_count"].sum())
+    signal_only = int(df_cy["signal_only_flag"].sum())
     risk_pct = f"{risk_count / total * 100:.1f}%" if total else "0%"
 
     st.markdown("### Ключевые показатели")
@@ -37,9 +23,9 @@ def render_overview(df_cy, df_hs):
 
     col1, col2 = st.columns(2)
     with col1:
-        st.plotly_chart(donut_criticality(df), use_container_width=True)
+        st.plotly_chart(donut_criticality(df_cy), use_container_width=True)
     with col2:
         st.plotly_chart(stacked_bar_hypotheses(df_hs), use_container_width=True)
 
     st.plotly_chart(heatmap_hypothesis_criticality(df_hs), use_container_width=True)
-    st.plotly_chart(top_sectors_bar(df), use_container_width=True)
+    st.plotly_chart(top_sectors_bar(df_cy), use_container_width=True)
