@@ -1,67 +1,49 @@
-import paramiko, os
+import paramiko, os, sys
+
+HOST = '62.217.183.95'
+USER = 'root'
+PWD = '8884&JKL%f75'
+LOCAL = r'D:\project\FRS_TEST\dashboard'
+REMOTE = '/opt/analytics/dashboard'
+
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect('62.217.183.95', port=22, username='root', password='8884&JKL%f75', timeout=15)
+ssh.connect(HOST, username=USER, password=PWD, timeout=30, look_for_keys=False, allow_agent=False)
 
 sftp = ssh.open_sftp()
 
-# Create directory structure
-base = '/opt/analytics/dashboard'
-for d in ['', '/utils', '/pages']:
+for root, dirs, files in os.walk(LOCAL):
+    rel = os.path.relpath(root, LOCAL)
+    remote_dir = os.path.join(REMOTE, rel).replace('\\', '/')
     try:
-        sftp.mkdir(base + d)
-    except:
-        pass
-
-# Upload all files
-local_base = r'D:\project\FRS_TEST\dashboard'
-for root, dirs, files in os.walk(local_base):
-    for fname in files:
-        local_path = os.path.join(root, fname)
-        rel_path = os.path.relpath(local_path, local_base).replace('\\', '/')
-        remote_path = f'{base}/{rel_path}'
+        sftp.stat(remote_dir)
+    except FileNotFoundError:
+        sftp.mkdir(remote_dir)
+        print(f'MKDIR {remote_dir}')
+    for f in files:
+        local_path = os.path.join(root, f)
+        remote_path = os.path.join(remote_dir, f).replace('\\', '/')
         sftp.put(local_path, remote_path)
-        print(f'  Uploaded: {rel_path}')
+        print(f'PUT {remote_path}')
 
 sftp.close()
 
-# Install deps and start streamlit
-_, o, _ = ssh.exec_command(
-    f'/opt/analytics/venv/bin/python -m pip install streamlit plotly sqlalchemy psycopg2-binary 2>&1 | tail -3'
+cmd = (
+    "kill -9 $(ps aux | grep 'streamlit run' | grep -v grep | awk '{print $2}') 2>/dev/null; "
+    "sleep 2; "
+    "cd /opt/analytics/dashboard && "
+    "setsid /opt/analytics/venv/bin/streamlit run app.py "
+    "--server.port 8501 --server.address 127.0.0.1 --server.headless true "
+    ">/dev/null 2>&1 & "
+    "sleep 3; "
+    "ps aux | grep -v grep | grep streamlit"
 )
-out = o.read()
-print(f'\nPip: {len(out)} bytes')
 
-# Create systemd service
-service = """[Unit]
-Description=Streamlit Analytics Dashboard
-After=network.target
-
-[Service]
-User=root
-WorkingDirectory=/opt/analytics/dashboard
-ExecStart=/opt/analytics/venv/bin/streamlit run app.py --server.port 8501 --server.address 127.0.0.1 --server.headless true
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-"""
-
-sftp2 = ssh.open_sftp()
-f = sftp2.file('/etc/systemd/system/streamlit-dashboard.service', 'w')
-f.write(service)
-f.close()
-sftp2.close()
-
-# Enable and start
-_, o2, _ = ssh.exec_command('systemctl daemon-reload && systemctl enable streamlit-dashboard && systemctl restart streamlit-dashboard 2>&1')
-print('Service:', o2.read().decode(errors='replace').strip())
-
-# Check status
-import time
-time.sleep(5)
-_, o3, _ = ssh.exec_command('systemctl status streamlit-dashboard --no-pager 2>&1 | head -10')
-print('Status:', o3.read().decode(errors='replace')[:400])
-
+stdin, stdout, stderr = ssh.exec_command(cmd, timeout=15)
+print('\nRESTART RESULT:')
+print(stdout.read().decode())
+err = stderr.read().decode()
+if err:
+    print(f'STDERR: {err}')
 ssh.close()
+print('DONE')

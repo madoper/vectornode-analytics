@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import requests
 from sqlalchemy import text
 from db import engine, DB_URL
 from queries import *
@@ -24,7 +25,7 @@ except Exception as e:
     st.error(f"Нет подключения к БД: {e}")
     st.stop()
 
-pages = {"▤ Обзор": 0, "◎ Компания": 1, "⚗ Гипотезы": 2, "⊞ Группы": 3, "⬡ Отрасли": 4, "📋 Методика": 5, "📊 Процесс анализа": 6}
+pages = {"▤ Обзор": 0, "◎ Компания": 1, "⚗ Гипотезы": 2, "⊞ Группы": 3, "⬡ Отрасли": 4, "📋 Методика": 5, "📊 Процесс анализа": 6, "🤖 AI-анализ": 7}
 sel = st.sidebar.radio("Дашборд", list(pages.keys()), key="nav_radio")
 st.sidebar.markdown("---")
 st.sidebar.caption("ФНС Аналитика — риск-мониторинг")
@@ -164,6 +165,32 @@ elif page == 1:
         hm = fl.set_index("year")[[f"h{i}_flag" for i in range(1, 7)]]
         hm.columns = [f"H{i}" for i in range(1, 7)]
         st.plotly_chart(px.imshow(hm.T, text_auto=True, aspect="auto", color_continuous_scale="RdYlGn"), use_container_width=True)
+
+    st.markdown("---")
+    if st.button("🤖 Объяснить аномалии AI"):
+        with st.spinner("AI анализирует..."):
+            cname = sel.split(" (")[0]
+            anom = "\n".join(
+                f"- {r['hypothesis_code']}: {r['interpretation_reason'] or r['interpretation']}"
+                for _, r in an.iterrows()
+            ) if not an.empty else "аномалий нет"
+            query = (
+                f"Компания '{cname}'. Аномалии:\n{anom}\n\n"
+                "Объясни каждую аномалию со ссылками на нормативные акты."
+            )
+            try:
+                resp = requests.post("http://127.0.0.1:8000/api/v1/answer", json={"query": query}, timeout=60)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    st.markdown("### 🤖 Объяснение AI")
+                    st.markdown(data.get("text", "Нет ответа"))
+                    for f in data.get("fragments", [])[:2]:
+                        with st.expander(f"📄 {f.get('source','источник')}"):
+                            st.text(f.get("text","")[:300])
+                else:
+                    st.warning("AI-сервис недоступен")
+            except Exception as e:
+                st.warning(f"⚠️ {e}")
 
 # ======================== PAGE 2: HYPOTHESES ========================
 elif page == 2:
@@ -305,3 +332,58 @@ elif page == 5:
 # ======================== PAGE 6: ANALYSIS PROCESS ========================
 elif page == 6:
     st.image("FRS1.jpeg", use_container_width=True)
+
+# ======================== PAGE 7: AI ANALYSIS ========================
+elif page == 7:
+    st.markdown("## <i class='material-icons'>psychology</i> AI-анализ рисков", unsafe_allow_html=True)
+
+    with engine.connect() as conn:
+        companies = conn.execute(text(Q_ALL_COMPANIES)).fetchall()
+    opts = {f"{c[1]} ({c[0]})": c[0] for c in companies}
+    sel = st.selectbox("Компания", list(opts.keys()))
+    cid = opts[sel]
+
+    if st.button("🔍 Анализировать", type="primary"):
+        with st.spinner("Запрос к AI-ассистенту..."):
+            try:
+                with engine.connect() as conn:
+                    an = pd.read_sql(Q_COMPANY_ANOMALIES, conn.connection, params={"cid": cid})
+                    cy = pd.read_sql(Q_COMPANY_TIMELINE, conn.connection, params={"cid": cid})
+                name = sel.split(" (")[0]
+                latest = cy.iloc[-1] if not cy.empty else None
+                anomalies_text = "\n".join(
+                    f"- {r['hypothesis_code']}: {r['interpretation_reason'] or r['interpretation']}"
+                    for _, r in an.iterrows()
+                ) if not an.empty else "Аномалии не обнаружены"
+
+                context = (
+                    f"Компания '{name}'.\n"
+                    f"Отрасль: {latest['okved_section'] if latest is not None else '—'}.\n"
+                    f"Выручка: {latest['revenue'] if latest is not None else '—'}, "
+                    f"прибыль: {latest['net_profit'] if latest is not None else '—'}.\n"
+                    f"FPR: {latest['fpr'] if latest is not None else '—'}.\n"
+                    f"Аномалии:\n{anomalies_text}\n\n"
+                    "Объясни каждую аномалию со ссылками на нормативные акты (ФЗ-115, НК РФ и др.)."
+                )
+
+                resp = requests.post(
+                    "http://127.0.0.1:8000/api/v1/answer",
+                    json={"query": context},
+                    timeout=60,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    fragments = data.get("fragments", [])
+                    if fragments:
+                        st.markdown("### 📚 Релевантные документы")
+                        for frag in fragments[:3]:
+                            with st.expander(f"📄 {frag.get('source', 'источник')} (score: {frag.get('score', 0):.2f})"):
+                                st.text(frag.get("text", "")[:500])
+                    st.markdown("### 🤖 Заключение AI")
+                    st.markdown(data.get("text", "Нет ответа"))
+                else:
+                    st.error(f"Gateway недоступен (HTTP {resp.status_code})")
+            except requests.ConnectionError:
+                st.warning("⚠️ AI-сервис временно недоступен. Попробуйте позже.")
+            except Exception as e:
+                st.error(f"Ошибка: {e}")

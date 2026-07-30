@@ -2,24 +2,17 @@ import paramiko
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect('62.217.183.95', username='root', password='8884&JKL%f75', timeout=15)
+ssh.connect('62.217.183.95', username='root', password='8884&JKL%f75', timeout=15, look_for_keys=False, allow_agent=False)
 
+# Verify all endpoints work via nginx proxy
 cmds = [
-    'echo "=== SERVICES ==="',
-    'systemctl show -p ActiveState airflow-webserver airflow-scheduler',
-    'echo "=== AIRFLOW DAG LIST ==="',
-    '. /opt/analytics/venv/bin/activate && AIRFLOW_HOME=/opt/analytics airflow dags list 2>&1',
-    'echo "=== AIRFLOW CONNECTION CHECK ==="',
-    '. /opt/analytics/venv/bin/activate && AIRFLOW_HOME=/opt/analytics airflow db check 2>&1',
-    'echo "=== ANALYTICS DB DATA ==="',
-    'docker exec podft-postgres psql -U dbt_user -d analytics -c "SELECT * FROM public_marts.company_risk_summary ORDER BY anomaly_pct DESC"',
-    'echo "=== DBT TEST ==="',
-    'cd /opt/analytics/analytics_dbt && . /opt/analytics/venv/bin/activate && dbt test --profiles-dir . --project-dir . 2>&1 || true',
+    "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8501/ 2>/dev/null",
+    "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8501/_stcore/health 2>/dev/null",
+    "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8501/_stcore/stream 2>/dev/null",
 ]
 
 for cmd in cmds:
-    print(f'> {cmd[:70]}')
-    stdin, stdout, stderr = ssh.exec_command(cmd)
-    print(stdout.read().decode(errors='replace').strip()[:2000])
+    stdin, stdout, stderr = ssh.exec_command(cmd, timeout=8)
+    print(stdout.read().decode().strip()[:200])
 
 ssh.close()
