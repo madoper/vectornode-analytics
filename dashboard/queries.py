@@ -61,7 +61,8 @@ Q_COMPANY_TIMELINE = """
 SELECT year, revenue, net_profit, dividends_paid, headcount,
        net_margin, tax_to_profit_valid AS tax_to_profit, financial_pressure_ratio AS fpr,
        rev_growth, emp_growth, anomaly_count, max_criticality_score,
-       criticality_final, risk_flag, signal_only_flag
+       criticality_final, risk_flag, signal_only_flag,
+       company_name, okved_section, region
 FROM reporting.rpt_company_year
 WHERE company_id = %(cid)s
 ORDER BY year;

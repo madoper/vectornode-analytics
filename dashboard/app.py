@@ -349,8 +349,8 @@ elif page == 7:
                 with engine.connect() as conn:
                     an = pd.read_sql(Q_COMPANY_ANOMALIES, conn.connection, params={"cid": cid})
                     cy = pd.read_sql(Q_COMPANY_TIMELINE, conn.connection, params={"cid": cid})
-                name = sel.split(" (")[0]
                 latest = cy.iloc[-1] if not cy.empty else None
+                name = str(latest["company_name"]) if latest is not None else sel.split(" (")[0]
                 anomalies_text = "\n".join(
                     f"- {r['hypothesis_code']}: {r['interpretation_reason'] or r['interpretation']}"
                     for _, r in an.iterrows()
@@ -359,6 +359,7 @@ elif page == 7:
                 context = (
                     f"Компания '{name}'.\n"
                     f"Отрасль: {latest['okved_section'] if latest is not None else '—'}.\n"
+                    f"Регион: {latest['region'] if latest is not None else '—'}.\n"
                     f"Выручка: {latest['revenue'] if latest is not None else '—'}, "
                     f"прибыль: {latest['net_profit'] if latest is not None else '—'}.\n"
                     f"FPR: {latest['fpr'] if latest is not None else '—'}.\n"
