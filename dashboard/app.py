@@ -179,14 +179,15 @@ elif page == 1:
                 "Объясни каждую аномалию со ссылками на нормативные акты."
             )
             try:
-                resp = requests.post("http://127.0.0.1:8000/api/v1/answer", json={"query": query}, timeout=60)
+                resp = requests.post("http://127.0.0.1:8000/api/v1/answer", json={"question": query}, timeout=60)
                 if resp.status_code == 200:
                     data = resp.json()
+                    answer = data.get("answer") or {}
                     st.markdown("### 🤖 Объяснение AI")
-                    st.markdown(data.get("text", "Нет ответа"))
-                    for f in data.get("fragments", [])[:2]:
-                        with st.expander(f"📄 {f.get('source','источник')}"):
-                            st.text(f.get("text","")[:300])
+                    st.markdown(answer.get("llm_summary") or answer.get("summary", "Нет ответа"))
+                    for cit in answer.get("citations", [])[:2]:
+                        with st.expander(f"📄 {cit.get('document_title','источник')}"):
+                            st.text(cit.get("quote","")[:300])
                 else:
                     st.warning("AI-сервис недоступен")
             except Exception as e:
@@ -369,19 +370,20 @@ elif page == 7:
 
                 resp = requests.post(
                     "http://127.0.0.1:8000/api/v1/answer",
-                    json={"query": context},
+                    json={"question": context},
                     timeout=60,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    fragments = data.get("fragments", [])
-                    if fragments:
+                    answer = data.get("answer") or {}
+                    citations = answer.get("citations", [])
+                    if citations:
                         st.markdown("### 📚 Релевантные документы")
-                        for frag in fragments[:3]:
-                            with st.expander(f"📄 {frag.get('source', 'источник')} (score: {frag.get('score', 0):.2f})"):
-                                st.text(frag.get("text", "")[:500])
+                        for cit in citations[:3]:
+                            with st.expander(f"📄 {cit.get('document_title', 'источник')}"):
+                                st.text(cit.get("quote", "")[:500])
                     st.markdown("### 🤖 Заключение AI")
-                    st.markdown(data.get("text", "Нет ответа"))
+                    st.markdown(answer.get("llm_summary") or answer.get("summary", "Нет ответа"))
                 else:
                     st.error(f"Gateway недоступен (HTTP {resp.status_code})")
             except requests.ConnectionError:
