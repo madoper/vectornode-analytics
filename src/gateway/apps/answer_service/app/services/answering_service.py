@@ -156,10 +156,18 @@ class AnsweringService:
                 self._strip_html(f.get("fragment_text", ""))[:500] for f in fragments[:5]
             )
             prompt = (
-                "Краткое, понятное изложение сути запроса на русском по найденным фрагментам.\n\n"
-                f"Запрос пользователя: {question}\n\n"
-                f"Фрагменты нормативных документов:\n{texts}\n\n"
-                "Дай краткий ответ на русском, 2-3 предложения, без цитирования."
+                "Ты — эксперт ФНС по анализу финансовых рисков российских компаний. "
+                "Проанализируй конкретные аномалии компании из запроса пользователя "
+                "и дай заключение на основе нормативных фрагментов.\n\n"
+                f"Запрос пользователя:\n{question}\n\n"
+                f"Нормативные фрагменты:\n{texts}\n\n"
+                "Дай ответ строго по делу (3-6 предложений):\n"
+                "1. Какие аномалии обнаружены (H1-H6) — кратко.\n"
+                "2. Какие нормативные акты применимы — с номерами статей.\n"
+                "3. Вывод: уровень риска и рекомендуемые действия.\n"
+                "Если фрагменты не относятся к аномалиям — честно скажи, "
+                "что нормативная база не покрывает данный кейс.\n"
+                "Отвечай на русском, без общих фраз."
             )
             try:
                 req = LlmRequest(
@@ -173,34 +181,7 @@ class AnsweringService:
             except Exception:
                 logging.warning("LLM summarization failed", exc_info=True)
 
-        # Fallback: LLM unavailable or failed — build readable connected text from top fragments
-        top = sorted(
-            [f for f in fragments[:5] if f.get("fragment_text")],
-            key=lambda f: f.get("confidence_score", 0),
-            reverse=True,
-        )
-        if not top:
-            return None
-        statements = []
-        seen = set()
-        for f in top:
-            text = self._strip_html(f.get("fragment_text", "")).strip()
-            if not text or text in seen:
-                continue
-            seen.add(text)
-            label = f.get("citation_label", "")
-            dot_pos = text.find('. ')
-            core = text[:dot_pos] if 30 < dot_pos < 200 else text[:200]
-            core = self._simplify_text(core.strip().rstrip(',;') + '.')
-            statements.append(
-                f"Согласно {label} {core[0].lower()}{core[1:]}" if label else core
-            )
-        if not statements:
-            return None
-        summary_text = statements[0]
-        for s in statements[1:]:
-            summary_text += f" Кроме того, {s[0].lower()}{s[1:]}"
-        return summary_text
+        return None
 
     @staticmethod
     def _strip_html(text: str) -> str:

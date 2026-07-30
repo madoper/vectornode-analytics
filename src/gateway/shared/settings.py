@@ -46,8 +46,8 @@ class Settings(BaseSettings):
     llm_summarization_provider: str = "openrouter"
     llm_summarization_model: str = "google/gemini-2.0-flash-001"
 
-    gigachat_client_id: str = ""
-    gigachat_secret: str = ""
+    gigachat_client_id: str = "019ade09-90b2-7d5b-8ebf-aaee57d985df"
+    gigachat_secret: str = "cd534c2f-c6d3-4570-b90d-44e1f2418ac6"
 
     gateway_ro_user: str = "gateway_ro"
     gateway_ro_password: str = "gateway_ro_secret"

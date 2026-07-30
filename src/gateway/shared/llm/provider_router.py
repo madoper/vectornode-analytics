@@ -93,18 +93,24 @@ def create_llm_router() -> LlmProviderRouter:
 
 
 def create_summarization_router() -> LlmProviderRouter | None:
-    """Factory for summarization-specific LLM router. Returns None if no API key."""
-    if not settings.llm_api_key:
-        return None
+    """Factory for summarization-specific LLM router. Returns None if no credentials."""
     prov: dict[str, BaseLlmClient] = {}
-    if settings.llm_summarization_provider == "openrouter":
-        prov["summarization"] = OpenRouterClient(
-            model=settings.llm_summarization_model
-        )
+    if settings.llm_summarization_provider == "gigachat":
+        if settings.gigachat_client_id and settings.gigachat_secret:
+            prov["summarization"] = GigaChatClient()
+    elif settings.llm_summarization_provider == "openrouter":
+        if settings.llm_api_key:
+            prov["summarization"] = OpenRouterClient(
+                model=settings.llm_summarization_model
+            )
     elif settings.llm_summarization_provider == "openai":
-        prov["summarization"] = OpenAiClient()
+        if settings.llm_api_key:
+            prov["summarization"] = OpenAiClient()
     else:
-        prov["summarization"] = OpenRouterClient(
-            model=settings.llm_summarization_model
-        )
+        if settings.llm_api_key:
+            prov["summarization"] = OpenRouterClient(
+                model=settings.llm_summarization_model
+            )
+    if not prov:
+        return None
     return LlmProviderRouter(prov)
